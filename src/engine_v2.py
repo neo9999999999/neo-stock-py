@@ -10,7 +10,6 @@
 5. 당일 등락률 ≥ 5% OR 20일 누적 ≥ 15% (강한 추세)
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional

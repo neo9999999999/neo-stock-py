@@ -10,7 +10,6 @@
 - 사례 유사도 점수 > 임계치인 종목만 추천
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path

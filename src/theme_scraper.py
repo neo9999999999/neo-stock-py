@@ -10,12 +10,12 @@ m.stock.naver.com JSON API를 사용해 실시간 데이터를 가져옴.
 - 종목 뉴스: finance.naver.com/item/news_news.naver?code={code} (HTML)
 """
 
-from __future__ import annotations
 
 import copy
 import datetime as dt
 import time
 from dataclasses import dataclass
+from typing import Optional, List
 
 import requests
 from bs4 import BeautifulSoup
@@ -265,7 +265,7 @@ def fetch_stock_news(code: str, limit: int = 5) -> list[News]:
 
 # ----- 종목 → 테마 매핑 ----------------------------------------------------
 
-def find_themes_for_stock(code: str, themes: list[Theme] | None = None) -> list[str]:
+def find_themes_for_stock(code: str, themes: Optional[List[Theme]] = None) -> list[str]:
     cache_key = f"stock_themes_{code}"
     cached = _cached(cache_key)
     if cached is not None:

@@ -5,10 +5,10 @@
 양보다 질 — 5년에 100~500건 정도만 잡히는 빡빡한 필터.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -22,8 +22,8 @@ ROOT = Path(__file__).resolve().parent.parent
 class ParamsV3:
     min_similarity: float = 0.6     # 사례 유사도 임계치 (0~1)
     top_k_per_day: int = 5
-    stop_loss: float | None = -0.03
-    take_profit: float | None = None
+    stop_loss: Optional[float] = -0.03
+    take_profit: Optional[float] = None
     exit_at: str = "close"
     cost_per_trade: float = 0.003
 
