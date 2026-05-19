@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# 캐시 데이터 (Streamlit Cloud에서 첫 실행 시 FDR로 자동 채움)
+# data/cases_input.txt, data/universe_final.txt 만 커밋
+data/*
+!data/cases_input.txt
+!data/universe_final.txt
+!data/.gitkeep
+
+# 백테스트 로그/임시 결과
+results/*.log
+results/run_*.log
+
+# 로컬 시크릿
+.streamlit/secrets.toml
