@@ -66,11 +66,42 @@ def get_name(ticker: str) -> str:
 
 # ----- 종목 OHLCV ---------------------------------------------------------
 
+_MASTER_RANGES = ("20210101_20260517", "20200601_20260517", "20200101_20260517")
+
+
+def _try_master_slice(ticker: str, start: str, end: str) -> pd.DataFrame | None:
+    """번들된 master 캐시(2021-2026 등)에서 요청 구간만 슬라이스해서 반환."""
+    target_start = pd.to_datetime(f"{start[:4]}-{start[4:6]}-{start[6:]}")
+    target_end = pd.to_datetime(f"{end[:4]}-{end[4:6]}-{end[6:]}")
+    for rng in _MASTER_RANGES:
+        mf = OHLCV_DIR / f"{ticker}_{rng}.parquet"
+        if not mf.exists():
+            continue
+        try:
+            df = pd.read_parquet(mf)
+        except Exception:
+            continue
+        if df.empty:
+            continue
+        if df.index.min() <= target_start and df.index.max() >= min(target_end, df.index.max()):
+            return df.loc[(df.index >= target_start) & (df.index <= target_end)]
+    return None
+
+
 def get_ohlcv(ticker: str, start: str, end: str, force: bool = False) -> pd.DataFrame:
     """일별 OHLCV. value = close * volume 근사."""
     cache_file = OHLCV_DIR / f"{ticker}_{start}_{end}.parquet"
     if cache_file.exists() and not force:
         return pd.read_parquet(cache_file)
+    # 번들된 master 캐시 슬라이스 시도 (Cloud에서 FDR 콜드스타트 회피)
+    if not force:
+        sliced = _try_master_slice(ticker, start, end)
+        if sliced is not None:
+            try:
+                sliced.to_parquet(cache_file)
+            except Exception:
+                pass
+            return sliced
     start_iso = f"{start[:4]}-{start[4:6]}-{start[6:]}"
     end_iso = f"{end[:4]}-{end[4:6]}-{end[6:]}"
     df = fdr.DataReader(ticker, start_iso, end_iso)
@@ -112,6 +143,25 @@ def get_index_ohlcv(idx_code: str, start: str, end: str, force: bool = False) ->
     cache_file = INDEX_DIR / f"idx_{idx_code}_{start}_{end}.parquet"
     if cache_file.exists() and not force:
         return pd.read_parquet(cache_file)
+    # 번들된 master 인덱스 슬라이스 시도
+    if not force:
+        target_start = pd.to_datetime(f"{start[:4]}-{start[4:6]}-{start[6:]}")
+        target_end = pd.to_datetime(f"{end[:4]}-{end[4:6]}-{end[6:]}")
+        for rng in _MASTER_RANGES:
+            mf = INDEX_DIR / f"idx_{idx_code}_{rng}.parquet"
+            if not mf.exists():
+                continue
+            try:
+                mdf = pd.read_parquet(mf)
+            except Exception:
+                continue
+            if not mdf.empty and mdf.index.min() <= target_start:
+                sliced = mdf.loc[(mdf.index >= target_start) & (mdf.index <= target_end)]
+                try:
+                    sliced.to_parquet(cache_file)
+                except Exception:
+                    pass
+                return sliced
     start_iso = f"{start[:4]}-{start[4:6]}-{start[6:]}"
     end_iso = f"{end[:4]}-{end[4:6]}-{end[6:]}"
     df = fdr.DataReader(idx_code, start_iso, end_iso)
