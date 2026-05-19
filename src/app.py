@@ -146,11 +146,29 @@ for icon, label, key in PAGES:
         st.rerun()
 
 st.sidebar.markdown('<div style="height:1px;background:#E5E8EB;margin:1.5rem 0;"></div>', unsafe_allow_html=True)
+
+# 현 상태 요약 카드 — 사용자가 어디서 뭘 보는지 한눈에
+from case_similarity import case_count as _cc
+_n_combined = _cc(combined=True)
+_n_user = _cc(combined=False)
+st.sidebar.markdown(
+    '<div style="background:rgba(0,200,150,0.08);border:1px solid rgba(0,200,150,0.2);'
+    'border-radius:8px;padding:0.625rem 0.75rem;margin-bottom:0.75rem;'
+    'color:#0B7950;font-size:0.7rem;line-height:1.55;">'
+    '<b style="font-size:0.8rem;color:#0B7950;">✅ 최신 빌드 (v3.8 OOS)</b><br>'
+    f'사례 합본 <b>{_n_combined:,}</b>개<br>'
+    f'(사용자 {_n_user} + 마이닝 {_n_combined-_n_user:,})<br>'
+    '워크포워드 진짜 OOS: <b>샤프 2.13</b><br>'
+    '<span style="color:#8B95A1;">(v3.7 in-sample 3.08은<br>look-ahead bias)</span>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
 st.sidebar.markdown(
     '<div style="color:#8B95A1;font-size:0.75rem;line-height:1.6;">'
     f'<b style="color:#191F28;">데이터</b><br>FDR · KRX<br>{dt.date.today()}<br><br>'
-    '<b style="color:#191F28;">전략</b><br>5대 조건 종가 베팅<br>익일 종가 청산<br><br>'
-    '<b style="color:#191F28;">유니버스</b><br>시총 상위 300<br>2021–2026'
+    '<b style="color:#191F28;">전략</b><br>v3.7/v3.8 사례 유사도<br>30~90일 보유<br><br>'
+    '<b style="color:#191F28;">유니버스</b><br>1,534종목 · 5천억+ 565<br>2021–2026'
     '</div>',
     unsafe_allow_html=True,
 )
@@ -822,6 +840,17 @@ def page_backtest():
         eyebrow="5년 백테스트",
         title="백테스트 분석",
         lead="2021–2026 · 시총 2,000억 이상 1,057종목. 디폴트값으로 자동 실행. 한국식 색상(빨강=익절, 파랑=손절).",
+    )
+
+    # In-sample 경고
+    st.markdown(
+        '<div style="background:rgba(240,68,82,0.06);border-left:4px solid #F04452;'
+        'padding:0.75rem 1rem;border-radius:8px;margin-bottom:0.875rem;font-size:0.875rem;line-height:1.5;">'
+        '⚠️ <b>이 페이지는 전체 기간 in-sample 백테스트</b>입니다. '
+        '사례 profile(2025~) 기반이라 2024년 이전 결과는 look-ahead bias 포함. '
+        '진짜 OOS 평가는 <b>워크포워드</b> 페이지의 v3.8 결과를 참고하세요.'
+        '</div>',
+        unsafe_allow_html=True,
     )
     # 첫 진입 시 자동 실행 + 캐시 강제 클리어
     if "bt_first_run" not in st.session_state:
@@ -1547,7 +1576,7 @@ def page_walkforward():
                 "누적": m.get("total_ret", 0),
             })
     if rows:
-        section_title("📊 v1 vs v3 vs v3.7 OOS 비교")
+        section_title("📊 4-way OOS 비교 (v1/v3/v3.7/v3.8)")
         cmp_df = pd.DataFrame(rows)
         st.dataframe(
             cmp_df.style.format({
@@ -1572,6 +1601,51 @@ def page_walkforward():
             '</div>',
             unsafe_allow_html=True,
         )
+
+        # 윈도우별 OOS 누적 수익 라인 비교
+        section_title("📈 윈도우별 OOS 누적 수익 비교")
+        st.caption("각 윈도우 검증 결과를 시계열로 누적. v3.7과 v3.8 격차가 in-sample bias 크기.")
+        line_data = []
+        for ver_label, ver_path in [("v3.7 in-sample", RESULTS / "v37_wf_summary.json"),
+                                       ("v3.8 진짜 OOS", RESULTS / "v38_wf_summary.json")]:
+            if not ver_path.exists():
+                continue
+            with open(ver_path) as f:
+                s = json.load(f)
+            cum_ret = 1.0
+            for w in s.get("windows", []):
+                test_m = w.get("test", {})
+                tot = test_m.get("total_ret", 0) or 0
+                cum_ret *= (1 + tot)
+                line_data.append({
+                    "version": ver_label,
+                    "window": w["window"],
+                    "test_start": w["test_start"],
+                    "cum_ret": cum_ret - 1,
+                })
+        if line_data:
+            line_df = pd.DataFrame(line_data)
+            line_df["test_start"] = pd.to_datetime(line_df["test_start"])
+            fig_cmp = go.Figure()
+            color_map = {"v3.7 in-sample": "#F04452", "v3.8 진짜 OOS": "#00C896"}
+            for ver in line_df["version"].unique():
+                sub = line_df[line_df["version"] == ver]
+                fig_cmp.add_trace(go.Scatter(
+                    x=sub["test_start"], y=sub["cum_ret"] * 100,
+                    mode="lines+markers", name=ver,
+                    line=dict(color=color_map.get(ver, "#3182F6"), width=2.5),
+                    marker=dict(size=8),
+                    hovertemplate=ver + " · %{x|%Y-%m-%d}<br>누적 %{y:+.1f}%<extra></extra>",
+                ))
+            fig_cmp.add_hline(y=0, line_dash="dash", line_color="#8B95A1")
+            fig_cmp.update_layout(
+                height=400, paper_bgcolor="white", plot_bgcolor="white",
+                yaxis_title="누적 수익 (%)", xaxis_title="검증 시작일",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                margin=dict(l=20, r=20, t=40, b=20),
+                font=dict(family="Pretendard"),
+            )
+            st.plotly_chart(fig_cmp, use_container_width=True)
 
     if not wf_summary.exists():
         empty_state("⏳", "워크포워드 미완료",
@@ -1858,6 +1932,46 @@ def page_cases():
         title="사례 39개 학습 분석",
         lead="사용자 제공 사례 39개의 매수일 시점 패턴 분석 + 9개 지표 통계. v3 시그널의 학습 기반.",
     )
+
+    # 🆕 reproduction test 결과
+    repro_csv = ROOT / "results" / "case_reproduction.csv"
+    if repro_csv.exists():
+        repro_df = pd.read_csv(repro_csv, dtype={"code": str})
+        repro_df["code"] = repro_df["code"].str.zfill(6)
+        valid = repro_df[repro_df["note"] == ""]
+        hit_t0 = int(valid["hit_t0"].sum())
+        hit_5d = int(valid["hit_t0_5d"].sum())
+
+        section_title("🧪 진짜 OOS reproduction — v3.8이 사용자 winner를 잡는가?")
+        st.caption("각 사례의 buy_date 시점에 그 사례를 포함하지 않은 profile로 시그널 계산. 진짜 OOS.")
+        kpi_row([
+            ("사례 수", f"{len(repro_df)}", "전체 사용자 winner", ""),
+            ("t0 정확히 hit", f"{hit_t0}/{len(valid)} ({hit_t0/len(valid)*100:.0f}%)",
+             "매수일 당일 sim≥0.5",
+             "success" if hit_t0/len(valid) >= 0.4 else "warning"),
+            ("±5영업일 hit", f"{hit_5d}/{len(valid)} ({hit_5d/len(valid)*100:.0f}%)",
+             "전후 5일 윈도우 내 1회 이상",
+             "success" if hit_5d/len(valid) >= 0.9 else "warning"),
+            ("±5d 평균 max sim", f"{valid['max_sim_pm5d'].mean():.2f}",
+             "윈도우 최고 유사도", "success"),
+        ])
+        st.markdown(
+            '<div style="background:rgba(0,200,150,0.08);border-left:4px solid #00C896;'
+            'padding:0.75rem 1rem;border-radius:8px;margin:0.5rem 0 1rem 0;font-size:0.875rem;line-height:1.5;">'
+            '<b>해석</b>: 진짜 OOS 모드에서 (사례를 profile에 포함하지 않은 상태) '
+            '사용자가 직접 고른 39개 winner를 <b style="color:#00C896;">±5영업일 윈도우로 100% 적중</b>. '
+            't0 정확도는 48.7% — 매수 시점 결정은 시그널보다 1~5일 빠를 수 있음을 시사. '
+            '시그널 정의 자체는 OOS에서도 작동함이 확인됨.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        with st.expander(f"📋 사례별 상세 (39건)", expanded=False):
+            display = repro_df.copy()
+            display.columns = ["코드", "이름", "매수일", "당시 profile 사례수",
+                                "t0 sim", "t0 hit", "±5d hit", "±5d max sim", "비고"]
+            st.dataframe(display, use_container_width=True, hide_index=True)
+
+        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
     cases_csv = ROOT / "results" / "cases_analysis.csv"
     if cases_csv.exists():
