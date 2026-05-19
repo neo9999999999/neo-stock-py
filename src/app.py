@@ -1487,8 +1487,9 @@ def page_walkforward():
 
     # 시그널 버전 선택
     WF_FILES = {
-        "🏆 v3.7 (시총 5천억+ 시장필터)": ("v37_wf_summary.json", "v37_wf_oos_trades.parquet"),
-        "⭐ v3 (사례 유사도)": ("v3_wf_summary.json", "v3_wf_oos_trades.parquet"),
+        "🧪 v3.8 진짜 OOS (시점별 case_profile)": ("v38_wf_summary.json", "v38_wf_oos_trades.parquet"),
+        "🏆 v3.7 (in-sample, 시총 5천억+ 시장필터)": ("v37_wf_summary.json", "v37_wf_oos_trades.parquet"),
+        "⭐ v3 (in-sample, 사례 유사도)": ("v3_wf_summary.json", "v3_wf_oos_trades.parquet"),
         "v1 (기존 5대 조건)": ("wf_summary.json", "wf_oos_trades.parquet"),
     }
     wf_ver = st.selectbox(
@@ -1499,15 +1500,17 @@ def page_walkforward():
     wf_summary = RESULTS / sum_file
     wf_trades = RESULTS / trades_file
 
-    # 3개 비교 통합 표
+    # 4개 비교 통합 표
     v1_path = RESULTS / "wf_summary.json"
     v3_path = RESULTS / "v3_wf_summary.json"
     v37_path = RESULTS / "v37_wf_summary.json"
+    v38_path = RESULTS / "v38_wf_summary.json"
 
     rows = []
     for label, path in [("v1 (기존)", v1_path),
-                         ("v3 (사례 학습)", v3_path),
-                         ("🏆 v3.7 (5천억+ 시장)", v37_path)]:
+                         ("v3 (in-sample, 사례 학습)", v3_path),
+                         ("🏆 v3.7 (in-sample, 5천억+ 시장)", v37_path),
+                         ("🧪 v3.8 진짜 OOS (시점별 profile)", v38_path)]:
         if path.exists():
             with open(path) as f:
                 m = json.load(f)["oos_metrics"]
@@ -1531,11 +1534,22 @@ def page_walkforward():
                 "PF": "{:.2f}", "샤프": "{:.2f}",
                 "MDD": "{:.1%}", "누적": "{:+.1f}%",
             }).apply(lambda x: ["background-color: rgba(0,200,150,0.1); font-weight:700;"
-                                  if "v3.7" in str(x.iloc[0]) else "" for _ in x],
+                                  if "v3.8" in str(x.iloc[0]) else "" for _ in x],
                       axis=1),
             use_container_width=True, hide_index=True,
         )
-        st.caption("v3.7이 모든 지표에서 압도 — 샤프 3.08, PF 2.05, OOS 누적 +175,160%")
+        st.markdown(
+            '<div style="background:rgba(49,130,246,0.06);border-left:4px solid #3182F6;'
+            'padding:0.875rem 1.125rem;border-radius:8px;margin-top:0.5rem;font-size:0.875rem;line-height:1.5;">'
+            '<b>해석</b>: v3.7 결과(샤프 3.08, 누적 +175,160%)는 '
+            '<b style="color:#F04452;">in-sample look-ahead bias</b>가 포함된 값입니다 — '
+            '사례 39개가 모두 2025년 이후라 2021-2024 시그널 정의에 미래 정보가 들어감.<br>'
+            '<b>v3.8 진짜 OOS</b>는 각 윈도우 시작 시점보다 buy_date가 앞선 사례만으로 '
+            'profile을 빌드 (마이닝 12,759 + 사용자 39 합본 사용). '
+            '결과 <b>샤프 2.13, 누적 +628%</b> — v3.7 대비 크게 낮지만 이게 정직한 숫자.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
     if not wf_summary.exists():
         empty_state("⏳", "워크포워드 미완료",
