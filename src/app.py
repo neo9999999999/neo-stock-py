@@ -34,7 +34,7 @@ from data_loader import (
 from engine import Params, add_signals, backtest, backtest_tiered, metrics
 from engine_v2 import ParamsV2, add_signals_v2, backtest_v2, metrics_v2
 from engine_v3 import ParamsV3, add_signals_v3, backtest_v3
-from case_similarity import build_profile
+from case_similarity import build_profile, case_count
 from theme import (
     PALETTE, inject_css, hero, section_title, bento,
     stock_card_html, theme_card_html, empty_state, code,
@@ -2420,11 +2420,15 @@ def page_themes():
 @st.cache_data(show_spinner="📅 시그널 사전 계산 중 (2~4분, 1회만)…")
 def precompute_v3_signals(universe_tuple: tuple[str, ...],
                             sim_threshold: float = 0.6,
-                            market_filter: bool = True) -> pd.DataFrame:
-    """전 기간(2021~2026) v3 시그널 + 익일/10/30/60/90일 미래 수익률.
-    market_filter=True면 KOSPI 20일선 위에서만 (v3.7 동급).
+                            market_filter: bool = True,
+                            profile_mode: str = "combined") -> pd.DataFrame:
+    """전 기간(2021~2026) v3 시그널 + 익일/10/30/60/90/120일 미래 수익률.
+
+    profile_mode:
+        - 'user39': 사용자 큐레이션 39개만 (기존, 2025~ 편향)
+        - 'combined': 사용자 39 + 마이닝 12,759 합본 (전 기간 평균)
+        - 'oos_yearly': 시그널 일자보다 이전 사례만으로 profile 빌드 (진짜 OOS)
     """
-    profile = build_profile()
     p = ParamsV3(min_similarity=sim_threshold)
 
     if market_filter:
@@ -2435,18 +2439,51 @@ def precompute_v3_signals(universe_tuple: tuple[str, ...],
     else:
         market_above = None
 
+    # 프로파일 준비
+    if profile_mode == "user39":
+        profile_by_year = {y: build_profile(combined=False) for y in range(2021, 2027)}
+    elif profile_mode == "combined":
+        profile_by_year = {y: build_profile(combined=True) for y in range(2021, 2027)}
+    else:                  # 'oos_yearly' — 각 연도 시작 시점 이전 사례만
+        profile_by_year = {}
+        for y in range(2021, 2027):
+            try:
+                profile_by_year[y] = build_profile(
+                    combined=True, asof_date=f"{y}-01-01")
+            except Exception:
+                profile_by_year[y] = None
+            # 진짜 OOS인데 사례 너무 적으면 skip
+            if profile_by_year[y] is not None:
+                n = case_count(combined=True, asof_date=f"{y}-01-01")
+                if n < 50:                        # 50건 미만이면 신뢰 어려움
+                    profile_by_year[y] = None
+
     rows = []
     for ticker in universe_tuple:
         try:
             df = get_ohlcv(ticker, "20200601", "20260517")
             if df.empty or len(df) < 80:
                 continue
-            sig = add_signals_v3(df, profile, p)
-            if market_above is not None:
-                above = market_above.reindex(sig.index, method="ffill").fillna(False)
-                sig = sig.copy()
-                sig["signal"] = sig["signal"] & above
-            triggered = sig[sig["signal"] & (sig.index >= "2021-01-01")]
+
+            # 연도별로 시그널 따로 계산 (OOS 모드일 때 profile이 다르므로)
+            triggered_dfs = []
+            for y in range(2021, 2027):
+                prof = profile_by_year.get(y)
+                if prof is None:
+                    continue
+                sig_y = add_signals_v3(df, prof, p)
+                if market_above is not None:
+                    above = market_above.reindex(sig_y.index, method="ffill").fillna(False)
+                    sig_y = sig_y.copy()
+                    sig_y["signal"] = sig_y["signal"] & above
+                mask = (sig_y["signal"]
+                         & (sig_y.index >= f"{y}-01-01")
+                         & (sig_y.index < f"{y+1}-01-01"))
+                triggered_dfs.append(sig_y[mask])
+
+            if not triggered_dfs:
+                continue
+            triggered = pd.concat(triggered_dfs)
 
             # 미래 가격 — 일별 인덱스 (df 활용)
             for date_ts, row in triggered.iterrows():
@@ -2508,10 +2545,37 @@ def page_history():
 
     oos_only = st.toggle(
         "✅ OOS only — 사례 profile 마지막 시점(2026-02-04) 이후 시그널만 표시",
-        value=True, key="hist_oos_only",
+        value=False, key="hist_oos_only",
         help="ON: 진짜 OOS (사례 데이터에 포함되지 않는 시점). "
-             "OFF: 전체 (2021~2026), 단 2025년 이전은 in-sample/look-ahead 가능.",
+             "OFF: 전체 (2021~2026). 단 profile_mode='user39'면 2025년 이전은 in-sample.",
     )
+
+    # 사례 profile 모드 선택
+    PROFILE_MODES = {
+        "🎯 합본 (사용자 39 + 마이닝 12,759) — 전 기간 평균": "combined",
+        "🧪 진짜 OOS — 시그널 일자 이전 사례만 (연도별)": "oos_yearly",
+        "📌 사용자 큐레이션 39개만 (구버전, 2025~ 편향)": "user39",
+    }
+    profile_label = st.selectbox(
+        "사례 profile 모드", list(PROFILE_MODES.keys()),
+        index=0, key="hist_profile_mode",
+        help=(
+            "합본: 2021~2024년 데이터로 12,759개 winner 마이닝 → 큰 표본, 편향 줄임. "
+            "OOS: 각 시그널 일자보다 이전 사례만 사용 → 진짜 walk-forward 검증. "
+            "user39: 기존 버전 호환."
+        ),
+    )
+    profile_mode = PROFILE_MODES[profile_label]
+
+    # 현재 모드의 사례 개수 표시
+    if profile_mode == "combined":
+        nc = case_count(combined=True)
+    elif profile_mode == "user39":
+        nc = case_count(combined=False)
+    else:
+        nc = case_count(combined=True, asof_date="2024-01-01")   # 2024 시점 기준 예시
+    st.caption(f"📊 현 모드 사례 수: {nc:,}개 "
+                + ("(연도별 변동)" if profile_mode == "oos_yearly" else ""))
 
     # session_state 초기화
     if "hist_sel_years" not in st.session_state:
@@ -2659,7 +2723,8 @@ def page_history():
         eligible = set(listing[listing["Marcap"] >= cap_cutoff]["Code"])
         universe = [t for t in universe if t in eligible]
 
-    df_all = precompute_v3_signals(tuple(universe), sim_threshold, market_filter_on)
+    df_all = precompute_v3_signals(tuple(universe), sim_threshold, market_filter_on,
+                                      profile_mode=profile_mode)
     if df_all.empty:
         empty_state("🔭", "시그널 없음", "임계치를 낮춰보세요.")
         return

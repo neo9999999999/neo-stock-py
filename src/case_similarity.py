@@ -13,6 +13,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -84,11 +85,44 @@ def compute_similarity(row: dict, profile: CaseProfile,
     return total / n_indicators if n_indicators else 0, scores
 
 
-def build_profile() -> CaseProfile:
-    """저장된 cases_analysis.csv로 프로파일 빌드."""
-    cases_df = pd.read_csv(ROOT / "results" / "cases_analysis.csv",
-                            dtype={"code": str})
+def _load_cases(combined: bool = True) -> pd.DataFrame:
+    """combined=True: 사용자 39개 + 마이닝 12,759개 (cases_combined.csv).
+    combined=False: 사용자 큐레이션 39개만 (cases_analysis.csv).
+    """
+    if combined:
+        f = ROOT / "results" / "cases_combined.csv"
+        if f.exists():
+            return pd.read_csv(f, dtype={"code": str})
+    return pd.read_csv(ROOT / "results" / "cases_analysis.csv",
+                        dtype={"code": str})
+
+
+def build_profile(combined: bool = True,
+                   asof_date: Optional[str] = None) -> CaseProfile:
+    """사례 프로파일 빌드.
+
+    Args:
+        combined: True면 39개 + 마이닝 12,759개 합본 사용.
+        asof_date: 'YYYY-MM-DD' 형식. 이 날짜 이전 buy_date 사례만 사용.
+                   walkforward OOS용 — 시그널 일자 시점에 알 수 없는 미래 사례
+                   를 profile 빌드에 쓰지 않음.
+    """
+    cases_df = _load_cases(combined=combined)
+    if asof_date is not None and "buy_date" in cases_df.columns:
+        cutoff = pd.to_datetime(asof_date)
+        bd = pd.to_datetime(cases_df["buy_date"].astype(str), format="%Y%m%d")
+        cases_df = cases_df[bd < cutoff].copy()
     return CaseProfile.from_cases(cases_df)
+
+
+def case_count(combined: bool = True, asof_date: Optional[str] = None) -> int:
+    """현 시점 사례 개수 — UI에 노출."""
+    cases_df = _load_cases(combined=combined)
+    if asof_date is not None and "buy_date" in cases_df.columns:
+        cutoff = pd.to_datetime(asof_date)
+        bd = pd.to_datetime(cases_df["buy_date"].astype(str), format="%Y%m%d")
+        cases_df = cases_df[bd < cutoff]
+    return len(cases_df)
 
 
 if __name__ == "__main__":
