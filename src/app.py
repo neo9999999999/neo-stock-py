@@ -194,6 +194,7 @@ def cached_universe(n: int | None = None) -> list[str]:
     return get_universe(n=n or 300)
 
 
+@st.cache_data(show_spinner=False)
 def load_panel(tickers: tuple[str, ...], start: str, end: str) -> dict:
     out = {}
     for t in tickers:
@@ -272,28 +273,28 @@ def page_today():
 
     # 전략 프리셋 (셀렉트박스 + 정보 카드)
     PRESETS_TODAY = {
-        "⭐ v3.7 — 시총 5천억+ (추천)": {
-            "use_v3": True, "cap": 5e11,
+        "⭐ v3.7 — 시총 5천억+ + 시장필터 (추천)": {
+            "use_v3": True, "cap": 5e11, "market": True,
             "sharpe": 2.48, "mean": 3.94, "stocks": 565,
             "desc": "균형 잡힌 추천. 종목 다양성 + 우수한 성과",
         },
-        "🏆 v3.7 — 시총 1조+ (대형주 최강)": {
-            "use_v3": True, "cap": 1e12,
+        "🏆 v3.7 — 시총 1조+ + 시장필터 (대형주 최강)": {
+            "use_v3": True, "cap": 1e12, "market": True,
             "sharpe": 2.89, "mean": 4.75, "stocks": 366,
             "desc": "가장 안정적. 외국인/기관 수급 명확한 대형주",
         },
-        "📊 v3.1 — 시장 필터 (전체)": {
-            "use_v3": True, "cap": 0,
+        "📊 v3.1 — 전체 + 시장필터": {
+            "use_v3": True, "cap": 0, "market": True,
             "sharpe": 1.47, "mean": 2.40, "stocks": 1534,
             "desc": "중소형주 포함 — KOSPI 20일선 위에서만",
         },
-        "🌐 v3.0 — 기본 (전체)": {
-            "use_v3": True, "cap": 0,
+        "🌐 v3.0 — 기본 (전체, 필터 없음)": {
+            "use_v3": True, "cap": 0, "market": False,
             "sharpe": 1.02, "mean": 1.70, "stocks": 1534,
             "desc": "시장 필터 없는 기본 사례 유사도",
         },
         "❌ v1 — 기존 5대 조건 (비추)": {
-            "use_v3": False, "cap": 0,
+            "use_v3": False, "cap": 0, "market": False,
             "sharpe": 0.40, "mean": 0.17, "stocks": 1534,
             "desc": "사례 95% 놓침 — 참고용",
         },
@@ -324,6 +325,7 @@ def page_today():
     use_v3_today = cfg["use_v3"]
     size_cutoff = cfg["cap"]
     only_large_cap = size_cutoff > 0
+    apply_market_filter = cfg.get("market", False)
 
     # ===== 기준일 + 유사도 =====
     dc1, dc2 = st.columns([1, 1])
@@ -434,11 +436,31 @@ def page_today():
     start_dt = end_dt - dt.timedelta(days=200)
     target_dt = pd.to_datetime(date_str)
 
+    # 시장 필터: KOSPI 20일선 위인지 확인
+    kospi_above_ma = True
+    if apply_market_filter:
+        kospi = get_index_ohlcv("KS11", start_dt.strftime("%Y%m%d"), date_str)
+        if not kospi.empty:
+            kospi["ma20"] = kospi["close"].rolling(20).mean()
+            # 마지막 가용일 기준
+            last_row = kospi.iloc[-1]
+            kospi_above_ma = bool(last_row["close"] > last_row["ma20"])
+            if kospi_above_ma:
+                st.success(f"✅ 시장 필터 통과 — KOSPI {last_row['close']:.0f} > "
+                            f"20MA {last_row['ma20']:.0f}")
+            else:
+                st.error(f"❌ 시장 필터 차단 — KOSPI {last_row['close']:.0f} < "
+                          f"20MA {last_row['ma20']:.0f}. 이 프리셋은 매수 보류 권장.")
+                empty_state("🛑", "시장 필터에 의해 매수 보류",
+                             "KOSPI가 20일선 아래라 v3.7 전략 조건을 만족 안 함. "
+                             "프리셋을 'v3.0 (필터 없음)'으로 바꾸거나 시장 회복 대기.")
+                return
+
     progress = st.progress(0.0, text="OHLCV 로딩 중…")
     results = []
 
-    # v3 모드: 사례 프로파일 로드
-    case_profile = build_profile() if use_v3_today else None
+    # v3 모드: 사례 프로파일 로드 (combined 합본 12,798)
+    case_profile = build_profile(combined=True) if use_v3_today else None
 
     for i, ticker in enumerate(universe):
         progress.progress((i + 1) / max(len(universe), 1),
