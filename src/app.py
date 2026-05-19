@@ -259,6 +259,17 @@ def page_today():
         lead="v3.7 (대형주) 권장 — 샤프 2.89로 최강. 30일 보유.",
     )
 
+    # 정직 디스클로저: 두 페이지 차이점
+    with st.expander("ℹ️ '오늘의 추천' vs '추천 히스토리' 차이점", expanded=False):
+        st.markdown(
+            "**공통**: 같은 사례 유사도 엔진(`add_signals_v3`), 동일한 39개 사례 profile (2025-01~2026-02).\n\n"
+            "**차이**:\n"
+            "- **시장 필터(KOSPI 20MA)**: 히스토리는 프리셋에 따라 자동 ON, 오늘 페이지는 적용 안 함.\n"
+            "- **유니버스**: 두 페이지 모두 같은 universe + 시총 컷오프 적용.\n"
+            "- **OOS 신뢰도**: 오늘(2026-05-19)은 사례 마지막 시점(2026-02-04) 이후라 **진짜 OOS**. "
+            "히스토리는 2025년 이전 구간이 in-sample 위험."
+        )
+
     # 전략 프리셋 (셀렉트박스 + 정보 카드)
     PRESETS_TODAY = {
         "⭐ v3.7 — 시총 5천억+ (추천)": {
@@ -2445,7 +2456,7 @@ def precompute_v3_signals(universe_tuple: tuple[str, ...],
                 pos = df.index.get_loc(date_ts)
                 for n_label, n_days in [("ret_d1", 1), ("ret_d10", 10),
                                          ("ret_d30", 30), ("ret_d60", 60),
-                                         ("ret_d90", 90)]:
+                                         ("ret_d90", 90), ("ret_d120", 120)]:
                     if pos + n_days < len(df):
                         fut_close = float(df.iloc[pos + n_days]["close"])
                         future_returns[n_label] = (fut_close - entry_price) / entry_price
@@ -2478,6 +2489,28 @@ def page_history():
         eyebrow="추천 히스토리",
         title="📅 월별 v3 추천 종목 리스트",
         lead="연·월을 토글 버튼으로 선택 후 [조회]를 누르면 그때 데이터 조회.",
+    )
+
+    # ⚠️ 정직한 경고: 사례 39개가 모두 2025-01-02~2026-02-04 사이라
+    #    그 이전 시그널은 미래 정보로 만든 사례 profile이 들어가 있음 = IN-SAMPLE.
+    st.markdown(
+        '<div style="background:rgba(240,68,82,0.08);border-left:4px solid #F04452;'
+        'padding:0.875rem 1.125rem;border-radius:8px;margin-bottom:1rem;">'
+        '<div style="font-weight:800;color:#F04452;margin-bottom:0.25rem;">⚠️ '
+        '검증 신뢰도 주의 — 사례 profile에 look-ahead bias 있음</div>'
+        '<div style="color:#4E5968;font-size:0.875rem;line-height:1.5;">'
+        '사례 39개가 모두 <b>2025-01-02 ~ 2026-02-04</b> 사이에 매수된 종목으로 만들어졌습니다. '
+        '이 profile을 그 이전 시점(2021~2024)에 적용하면 <b>미래 정보가 과거 신호에 새는 in-sample 평가</b>가 됩니다. '
+        '진짜 OOS(out-of-sample)를 보려면 아래 토글을 <b>ON</b>으로 두고 <b>2026-02-05 이후</b> 결과만 보세요.'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+
+    oos_only = st.toggle(
+        "✅ OOS only — 사례 profile 마지막 시점(2026-02-04) 이후 시그널만 표시",
+        value=True, key="hist_oos_only",
+        help="ON: 진짜 OOS (사례 데이터에 포함되지 않는 시점). "
+             "OFF: 전체 (2021~2026), 단 2025년 이전은 in-sample/look-ahead 가능.",
     )
 
     # session_state 초기화
@@ -2631,6 +2664,14 @@ def page_history():
         empty_state("🔭", "시그널 없음", "임계치를 낮춰보세요.")
         return
 
+    # OOS only: 사례 마지막 시점 이후만
+    if oos_only:
+        df_all = df_all[df_all["date"] > "2026-02-04"].copy()
+        if df_all.empty:
+            empty_state("🧪", "OOS 시그널 없음 (2026-02-05 이후)",
+                         "OOS 모드는 정직하지만 표본이 작습니다. 토글 OFF로 전체 보기.")
+            return
+
     month_df = df_all[df_all["year"].isin(sel_years) &
                       df_all["month"].isin(sel_months)].copy()
 
@@ -2725,7 +2766,7 @@ def page_history():
 
     for src, dst in [("ret_d1", "익일"), ("ret_d10", "10일"),
                       ("ret_d30", "30일"), ("ret_d60", "60일"),
-                      ("ret_d90", "90일")]:
+                      ("ret_d90", "90일"), ("ret_d120", "120일")]:
         month_df[dst] = month_df[src].apply(_combine)
 
     # 전체 리스트
@@ -2762,7 +2803,7 @@ def page_history():
 
     period_cols = [("ret_d1", "익일"), ("ret_d10", "10일"),
                     ("ret_d30", "30일"), ("ret_d60", "60일"),
-                    ("ret_d90", "90일")]
+                    ("ret_d90", "90일"), ("ret_d120", "120일")]
 
     month_df["yyyymm"] = (month_df["year"].astype(str) + "-"
                             + month_df["month"].astype(str).str.zfill(2))
