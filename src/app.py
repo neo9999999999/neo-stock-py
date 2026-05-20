@@ -109,7 +109,6 @@ PAGES = [
     ("📊", "백테스트 결과", "backtest"),
     ("🔄", "워크포워드", "walkforward"),
     ("🧪", "월별 OOS 교차검증", "monthly_oos"),
-    ("🎛️", "파라미터 시뮬레이터", "simulator"),
     ("🔍", "사례 검증", "cases"),
     ("📖", "전략 가이드", "guide"),
 ]
@@ -2609,6 +2608,10 @@ def precompute_v3_signals(universe_tuple: tuple[str, ...],
                 if n < 50:                        # 50건 미만이면 신뢰 어려움
                     profile_by_year[y] = None
 
+    # oos_yearly 모드만 연도별 다른 profile. 나머지는 한 번만 계산.
+    is_oos_mode = profile_mode == "oos_yearly"
+    single_profile = profile_by_year.get(2024) if not is_oos_mode else None
+
     rows = []
     for ticker in universe_tuple:
         try:
@@ -2616,25 +2619,36 @@ def precompute_v3_signals(universe_tuple: tuple[str, ...],
             if df.empty or len(df) < 80:
                 continue
 
-            # 연도별로 시그널 따로 계산 (OOS 모드일 때 profile이 다르므로)
-            triggered_dfs = []
-            for y in range(2021, 2027):
-                prof = profile_by_year.get(y)
-                if prof is None:
-                    continue
-                sig_y = add_signals_v3(df, prof, p)
+            if not is_oos_mode and single_profile is not None:
+                # 빠른 경로: 한 profile로 한 번만 계산
+                sig = add_signals_v3(df, single_profile, p)
                 if market_above is not None:
-                    above = market_above.reindex(sig_y.index, method="ffill").fillna(False)
-                    sig_y = sig_y.copy()
-                    sig_y["signal"] = sig_y["signal"] & above
-                mask = (sig_y["signal"]
-                         & (sig_y.index >= f"{y}-01-01")
-                         & (sig_y.index < f"{y+1}-01-01"))
-                triggered_dfs.append(sig_y[mask])
+                    above = market_above.reindex(sig.index, method="ffill").fillna(False)
+                    sig = sig.copy()
+                    sig["signal"] = sig["signal"] & above
+                triggered = sig[sig["signal"] & (sig.index >= "2021-01-01")]
+            else:
+                # OOS 모드: 연도별로 profile 다름
+                triggered_dfs = []
+                for y in range(2021, 2027):
+                    prof = profile_by_year.get(y)
+                    if prof is None:
+                        continue
+                    sig_y = add_signals_v3(df, prof, p)
+                    if market_above is not None:
+                        above = market_above.reindex(sig_y.index, method="ffill").fillna(False)
+                        sig_y = sig_y.copy()
+                        sig_y["signal"] = sig_y["signal"] & above
+                    mask = (sig_y["signal"]
+                             & (sig_y.index >= f"{y}-01-01")
+                             & (sig_y.index < f"{y+1}-01-01"))
+                    triggered_dfs.append(sig_y[mask])
+                if not triggered_dfs:
+                    continue
+                triggered = pd.concat(triggered_dfs)
 
-            if not triggered_dfs:
+            if triggered.empty:
                 continue
-            triggered = pd.concat(triggered_dfs)
 
             # 미래 가격 — 일별 인덱스 (df 활용)
             for date_ts, row in triggered.iterrows():
@@ -3351,8 +3365,49 @@ def page_monthly_oos():
     )
     st.plotly_chart(fig_lines, use_container_width=True)
 
-    # === 5) 월별 표 ===
-    section_title("📋 월별 상세")
+    # === 5) 월별 종목 드릴다운 ===
+    section_title("🔍 월별 종목 리스트")
+    st.caption("월 선택 → 그 월에 v3.8 OOS 시그널이 잡힌 종목 + 보유 기간별 수익")
+    if not trades.empty:
+        avail_months = sorted(trades["month"].unique(), reverse=True)
+        sel_month = st.selectbox("월 선택", avail_months, key="oos_drill_month")
+        sub = trades[trades["month"] == sel_month].copy()
+
+        # 종목명 join
+        listing = get_krx_listing()
+        code_to_name = dict(zip(listing["Code"], listing["Name"]))
+        sub["name"] = sub["code"].map(lambda c: code_to_name.get(c, c))
+
+        # 가장 좋은 보유기간 추가
+        sub["best_hold"] = sub[["ret_30", "ret_60", "ret_90", "ret_120"]].idxmax(axis=1)
+        sub["best_ret"] = sub[["ret_30", "ret_60", "ret_90", "ret_120"]].max(axis=1)
+
+        # 유사도 + 종목 단위 그룹 (한 종목이 한 달에 여러 번 잡힐 수 있음 → 첫 시그널 사용)
+        sub = sub.sort_values(["code", "date"]).groupby("code", as_index=False).first()
+        sub = sub.sort_values("similarity", ascending=False)
+
+        display = sub[["name", "code", "date", "similarity",
+                        "entry_close", "ret_30", "ret_60", "ret_90", "ret_120",
+                        "best_hold", "best_ret"]].copy()
+        display.columns = ["종목명", "코드", "시그널일", "유사도", "매수가",
+                           "30일", "60일", "90일", "120일", "최적", "최적수익"]
+        st.dataframe(
+            display.style.format({
+                "유사도": "{:.2f}",
+                "매수가": "{:,.0f}",
+                "30일": "{:+.2%}", "60일": "{:+.2%}",
+                "90일": "{:+.2%}", "120일": "{:+.2%}",
+                "최적수익": "{:+.2%}",
+            }, na_rep="-").background_gradient(
+                cmap="RdYlGn",
+                subset=["30일", "60일", "90일", "120일", "최적수익"]),
+            use_container_width=True, hide_index=True, height=500,
+        )
+        st.caption(f"📊 **{sel_month}**: 시그널 발생 종목 **{len(display):,}개**. "
+                    f"동일 종목이 여러 번 잡힌 경우 첫 시그널만 표시.")
+
+    # === 6) 월별 표 ===
+    section_title("📋 월별 집계")
     valid_m["ret_30"] = valid_m["ret_30"].round(4)
     valid_m["ret_60"] = valid_m["ret_60"].round(4)
     valid_m["ret_90"] = valid_m["ret_90"].round(4)
@@ -3368,7 +3423,7 @@ def page_monthly_oos():
         use_container_width=True, hide_index=True, height=600,
     )
 
-    # === 6) 결론 ===
+    # === 7) 결론 ===
     section_title("💡 결론")
     st.markdown(
         '<div style="line-height:1.7;font-size:0.9rem;color:#191F28;">'
@@ -3395,7 +3450,6 @@ PAGE_FN = {
     "backtest": page_backtest,
     "walkforward": page_walkforward,
     "monthly_oos": page_monthly_oos,
-    "simulator": page_simulator,
     "cases": page_cases,
     "guide": page_guide,
 }
