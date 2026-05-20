@@ -2709,54 +2709,34 @@ def page_history():
         lead="연·월을 토글 버튼으로 선택 후 [조회]를 누르면 그때 데이터 조회.",
     )
 
-    # ⚠️ 정직한 경고: 사례 39개가 모두 2025-01-02~2026-02-04 사이라
-    #    그 이전 시그널은 미래 정보로 만든 사례 profile이 들어가 있음 = IN-SAMPLE.
-    st.markdown(
-        '<div style="background:rgba(240,68,82,0.08);border-left:4px solid #F04452;'
-        'padding:0.875rem 1.125rem;border-radius:8px;margin-bottom:1rem;">'
-        '<div style="font-weight:800;color:#F04452;margin-bottom:0.25rem;">⚠️ '
-        '검증 신뢰도 주의 — 사례 profile에 look-ahead bias 있음</div>'
-        '<div style="color:#4E5968;font-size:0.875rem;line-height:1.5;">'
-        '사례 39개가 모두 <b>2025-01-02 ~ 2026-02-04</b> 사이에 매수된 종목으로 만들어졌습니다. '
-        '이 profile을 그 이전 시점(2021~2024)에 적용하면 <b>미래 정보가 과거 신호에 새는 in-sample 평가</b>가 됩니다. '
-        '진짜 OOS(out-of-sample)를 보려면 아래 토글을 <b>ON</b>으로 두고 <b>2026-02-05 이후</b> 결과만 보세요.'
-        '</div></div>',
-        unsafe_allow_html=True,
+    # 단일 토글: 정직성 모드 (합본 ↔ 진짜 OOS)
+    strict_oos = st.toggle(
+        "🧪 진짜 OOS 모드",
+        value=False, key="hist_strict_oos",
+        help=("OFF (디폴트): 사례 합본 12,798개로 한 profile → 모든 시그널 계산. "
+              "안정적·표본 풍부.\n\n"
+              "ON: 각 연도 시작 시점 이전 사례만으로 profile 빌드 → "
+              "진짜 walk-forward 검증. 정직하지만 2021~22 초기는 사례 부족."),
     )
+    profile_mode = "oos_yearly" if strict_oos else "combined"
+    oos_only = False           # 진짜 OOS 모드면 자동으로 모든 데이터가 정직
 
-    oos_only = st.toggle(
-        "✅ OOS only — 사례 profile 마지막 시점(2026-02-04) 이후 시그널만 표시",
-        value=False, key="hist_oos_only",
-        help="ON: 진짜 OOS (사례 데이터에 포함되지 않는 시점). "
-             "OFF: 전체 (2021~2026). 단 profile_mode='user39'면 2025년 이전은 in-sample.",
-    )
-
-    # 사례 profile 모드 선택
-    PROFILE_MODES = {
-        "🎯 합본 (사용자 39 + 마이닝 12,759) — 전 기간 평균": "combined",
-        "🧪 진짜 OOS — 시그널 일자 이전 사례만 (연도별)": "oos_yearly",
-        "📌 사용자 큐레이션 39개만 (구버전, 2025~ 편향)": "user39",
-    }
-    profile_label = st.selectbox(
-        "사례 profile 모드", list(PROFILE_MODES.keys()),
-        index=0, key="hist_profile_mode",
-        help=(
-            "합본: 2021~2024년 데이터로 12,759개 winner 마이닝 → 큰 표본, 편향 줄임. "
-            "OOS: 각 시그널 일자보다 이전 사례만 사용 → 진짜 walk-forward 검증. "
-            "user39: 기존 버전 호환."
-        ),
-    )
-    profile_mode = PROFILE_MODES[profile_label]
-
-    # 현재 모드의 사례 개수 표시
-    if profile_mode == "combined":
-        nc = case_count(combined=True)
-    elif profile_mode == "user39":
-        nc = case_count(combined=False)
+    # 짧은 상태 안내
+    if strict_oos:
+        st.markdown(
+            '<div style="background:rgba(0,200,150,0.08);border-left:3px solid #00C896;'
+            'padding:0.5rem 0.875rem;border-radius:6px;margin-bottom:0.75rem;font-size:0.8rem;color:#0B7950;">'
+            '<b>진짜 OOS</b>: 연도별 다른 profile (그 시점 이전 사례만 사용). 정직한 walk-forward.'
+            '</div>', unsafe_allow_html=True)
     else:
-        nc = case_count(combined=True, asof_date="2024-01-01")   # 2024 시점 기준 예시
-    st.caption(f"📊 현 모드 사례 수: {nc:,}개 "
-                + ("(연도별 변동)" if profile_mode == "oos_yearly" else ""))
+        st.markdown(
+            '<div style="background:rgba(49,130,246,0.06);border-left:3px solid #3182F6;'
+            'padding:0.5rem 0.875rem;border-radius:6px;margin-bottom:0.75rem;font-size:0.8rem;color:#1B4F8C;">'
+            '<b>합본</b>: 사용자 39 + 마이닝 12,759 = 12,798 사례 단일 profile. '
+            '안정적이지만 2021~24 시그널엔 mild look-ahead 가능.'
+            '</div>', unsafe_allow_html=True)
+
+    sim_threshold = 0.6        # 사전계산 시 0.6 고정. 사용자에 노출 안 함.
 
     # session_state 초기화
     if "hist_sel_years" not in st.session_state:
@@ -2771,11 +2751,9 @@ def page_history():
         "📊 v3.1 (전체 + 시장필터)": (0, True, 1.47),
         "🌐 v3.0 (전체, 시장필터 X)": (0, False, 1.02),
     }
-    pc1, pc2 = st.columns([2, 1])
-    hist_preset = pc1.selectbox("🎯 프리셋", list(PRESETS_HIST.keys()),
+    hist_preset = st.selectbox("🎯 프리셋", list(PRESETS_HIST.keys()),
                                   index=0, key="hist_preset")
     cap_cutoff, market_filter_on, hist_sharpe = PRESETS_HIST[hist_preset]
-    sim_threshold = pc2.slider("유사도", 0.3, 0.9, 0.6, 0.05, key="hist_sim")
     color = "#00C896" if hist_sharpe >= 1.5 else ("#FF9F2E" if hist_sharpe >= 1.0 else "#F04452")
     st.markdown(
         f'<div style="display:flex;gap:1rem;padding:0.625rem 1rem;'
