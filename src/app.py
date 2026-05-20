@@ -310,6 +310,22 @@ def page_today():
     f_ret20_min = fc3.number_input("직전 20일 누적 ≥ %", value=20.0, step=1.0,
                                        format="%.1f", key="today_ret20_min")
 
+    # 보조지표 필터 (검증 TOP 2 — bb_width, env_ma60)
+    with st.expander("📊 보조지표 필터 — 검증 TOP 2 (선택)", expanded=False):
+        st.caption("OOS 검증 결과 90일 보유 Q5-Q1 격차가 가장 큰 지표 2개. "
+                    "값을 올릴수록 변동성·추세 강한 종목만 선별.")
+        bi1, bi2 = st.columns(2)
+        f_bb_min = bi1.number_input(
+            "최소 볼린저밴드 폭 %",
+            value=0.0, step=2.0, format="%.1f", key="today_bb_min",
+            help="BB 폭 = (상단-하단)/중심선. 0=미적용. "
+                 "Q5 평균 21% / Q1 평균 5%. 변동성 큰 종목 우선.")
+        f_env60_min = bi2.number_input(
+            "최소 60일 이격도 %",
+            value=0.0, step=5.0, format="%.1f", key="today_env60_min",
+            help="(종가/60일MA - 1) × 100. 0=미적용. "
+                 "Q5 +30%~ / Q1 -20%~. 60일 강세 종목 우선.")
+
     # ===== 추천 종목 수 =====
     max_recommend = st.slider("📋 추천 종목 수", 1, 50, 10,
                                 key="today_topk",
@@ -355,11 +371,17 @@ def page_today():
     n_after_ret = len(sig_df)
     if f_ret20_min > 0:
         sig_df = sig_df[sig_df["ret_20d"] >= f_ret20_min / 100]
+    n_after_20d = len(sig_df)
+    # 보조지표 필터 (bb_width, env_ma60)
+    if f_bb_min > 0 and "bb_width" in sig_df.columns:
+        sig_df = sig_df[sig_df["bb_width"] >= f_bb_min / 100]
+    if f_env60_min > 0 and "env_ma60" in sig_df.columns:
+        sig_df = sig_df[sig_df["env_ma60"] >= f_env60_min / 100]
     n_final = len(sig_df)
 
     st.info(f"📅 기준일 **{target_date_str}** · "
             f"전체 {n_initial} → 시총 {n_after_cap} → 대금 {n_after_value} → "
-            f"등락 {n_after_ret} → 20일 {n_final}개")
+            f"등락 {n_after_ret} → 20일 {n_after_20d} → 지표 {n_final}개")
 
     if sig_df.empty:
         # 가까운 풍부한 날짜 제안
@@ -376,6 +398,10 @@ def page_today():
                 test_df = test_df[test_df["ret_1d"] <= f_ret_max / 100]
             if f_ret20_min > 0:
                 test_df = test_df[test_df["ret_20d"] >= f_ret20_min / 100]
+            if f_bb_min > 0 and "bb_width" in test_df.columns:
+                test_df = test_df[test_df["bb_width"] >= f_bb_min / 100]
+            if f_env60_min > 0 and "env_ma60" in test_df.columns:
+                test_df = test_df[test_df["env_ma60"] >= f_env60_min / 100]
             if len(test_df) > 0:
                 suggestion = f" 💡 **{d}**에 {len(test_df)}개 매칭 — 기준일 변경해보세요."
                 break
@@ -2676,7 +2702,20 @@ def page_history():
                                   format="%.1f", key="hf_rmax")
     f_ret20_min = f3.number_input("직전 20일 누적 ≥ %", value=20.0, step=1.0,
                                     format="%.1f", key="hf_r20")
-    # 고급: RSI (기본 0 = 미적용)
+    # 보조지표 (검증 TOP 2)
+    with st.expander("📊 보조지표 필터 — 검증 TOP 2 (선택)", expanded=False):
+        st.caption("OOS 검증 90일 보유 Q5-Q1 격차 최대 2개 지표. 0 = 미적용.")
+        bb1, bb2 = st.columns(2)
+        f_bb_min = bb1.number_input(
+            "최소 볼린저밴드 폭 %",
+            value=0.0, step=2.0, format="%.1f", key="hf_bb",
+            help="BB 폭 (상단-하단)/중심선. Q5 평균 21% / Q1 평균 5%. "
+                 "변동성 큰 종목 우선.")
+        f_env60_min = bb2.number_input(
+            "최소 60일 이격도 %",
+            value=0.0, step=5.0, format="%.1f", key="hf_env60",
+            help="(종가/60일MA-1)×100. Q5 +30%↑ / Q1 -20%↓.")
+    # 고급: RSI
     with st.expander("🎚️ 고급 — RSI 필터 (선택)", expanded=False):
         ra, rb = st.columns(2)
         f_rsi_min = ra.number_input("최소 RSI", value=0, step=5,
@@ -2756,6 +2795,10 @@ def page_history():
         month_df = month_df[month_df["rsi"] >= f_rsi_min]
     if f_rsi_max > 0:
         month_df = month_df[month_df["rsi"] <= f_rsi_max]
+    if f_bb_min > 0 and "bb_width" in month_df.columns:
+        month_df = month_df[month_df["bb_width"] >= f_bb_min / 100]
+    if f_env60_min > 0 and "env_ma60" in month_df.columns:
+        month_df = month_df[month_df["env_ma60"] >= f_env60_min / 100]
     after_n = len(month_df)
     if before_n != after_n:
         st.caption(f"🔧 추가 필터로 {before_n}건 → {after_n}건 ({before_n-after_n}건 제외)")

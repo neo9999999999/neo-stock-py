@@ -91,6 +91,14 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
         if triggered.empty:
             continue
 
+        # 보조지표 계산 (시그널 시점에 사용할 bb_width, env_ma60, env_ma20)
+        bb_mid = df["close"].rolling(20).mean()
+        bb_std = df["close"].rolling(20).std()
+        bb_width = (4 * bb_std) / bb_mid.replace(0, float("nan"))   # 2σ × 2 / mid
+        ma60 = df["close"].rolling(60).mean()
+        env_ma60_series = df["close"] / ma60 - 1
+        env_ma20_series = df["close"] / bb_mid - 1
+
         marcap = code_to_marcap.get(code, 0)
         name = code_to_name.get(code, code)
 
@@ -114,6 +122,14 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
             except (KeyError, ValueError):
                 kospi_above = False
 
+            # 시그널 시점 보조지표 값
+            try:
+                bb_w_val = float(bb_width.iloc[pos]) if not pd.isna(bb_width.iloc[pos]) else 0.0
+                env60_val = float(env_ma60_series.iloc[pos]) if not pd.isna(env_ma60_series.iloc[pos]) else 0.0
+                env20_val = float(env_ma20_series.iloc[pos]) if not pd.isna(env_ma20_series.iloc[pos]) else 0.0
+            except (IndexError, KeyError):
+                bb_w_val, env60_val, env20_val = 0.0, 0.0, 0.0
+
             rows.append({
                 "date": date_ts.strftime("%Y-%m-%d"),
                 "year": date_ts.year, "month": date_ts.month,
@@ -127,6 +143,9 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
                 "value_eok": float(row.get("value", 0)) / 1e8,
                 "vol_ratio": float(row.get("volume_ratio_60d", 0)),
                 "rsi": float(row.get("rsi_14", 0)),
+                "bb_width": bb_w_val,
+                "env_ma20": env20_val,
+                "env_ma60": env60_val,
                 "close_to_high": float(row.get("close_to_day_high", 0)),
                 **future_returns,
             })
@@ -142,7 +161,7 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
     if "marcap" in df_out.columns:
         df_out["marcap"] = df_out["marcap"].astype("int64")
     for c in ("similarity", "ret_1d", "ret_20d", "value_eok", "vol_ratio",
-               "rsi", "close_to_high",
+               "rsi", "close_to_high", "bb_width", "env_ma20", "env_ma60",
                "ret_d1", "ret_d10", "ret_d30", "ret_d60", "ret_d90", "ret_d120"):
         if c in df_out.columns:
             df_out[c] = df_out[c].astype("float32")
