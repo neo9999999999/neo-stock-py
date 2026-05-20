@@ -3395,9 +3395,17 @@ def page_monthly_oos():
         sub["best_hold"] = sub[["ret_30", "ret_60", "ret_90", "ret_120"]].idxmax(axis=1)
         sub["best_ret"] = sub[["ret_30", "ret_60", "ret_90", "ret_120"]].max(axis=1)
 
-        # 유사도 + 종목 단위 그룹 (한 종목이 한 달에 여러 번 잡힐 수 있음 → 첫 시그널 사용)
-        sub = sub.sort_values(["code", "date"]).groupby("code", as_index=False).first()
-        sub = sub.sort_values("similarity", ascending=False)
+        # 종목별 dedup 옵션
+        dedup_mode = st.radio(
+            "표시 방식",
+            ["📊 시그널 전체 (한 종목 여러 번 가능)",
+             "🎯 종목당 1건 (유사도 최고치)"],
+            index=0, horizontal=True, key="oos_drill_dedup",
+        )
+        if dedup_mode.startswith("🎯"):
+            sub = sub.sort_values("similarity", ascending=False)
+            sub = sub.groupby("code", as_index=False).first()
+        sub = sub.sort_values(["similarity", "date"], ascending=[False, True])
 
         display = sub[["name", "code", "date", "similarity",
                         "entry_close", "ret_30", "ret_60", "ret_90", "ret_120",
@@ -3416,8 +3424,10 @@ def page_monthly_oos():
                 subset=["30일", "60일", "90일", "120일", "최적수익"]),
             use_container_width=True, hide_index=True, height=500,
         )
-        st.caption(f"📊 **{sel_month}**: 시그널 발생 종목 **{len(display):,}개**. "
-                    f"동일 종목이 여러 번 잡힌 경우 첫 시그널만 표시.")
+        sig_count = trades[trades["month"] == sel_month]["code"].nunique()
+        st.caption(f"📊 **{sel_month}**: 시그널 발생 종목 **{sig_count:,}개**, "
+                    f"전체 시그널 **{len(trades[trades['month'] == sel_month]):,}건**. "
+                    f"표시: {len(display):,}건.")
 
     # === 6) 월별 표 ===
     section_title("📋 월별 집계")
