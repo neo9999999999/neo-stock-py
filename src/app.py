@@ -2567,6 +2567,22 @@ def page_themes():
 # ====================================================================
 # 페이지: 추천 히스토리 (일자별 v3 시그널)
 # ====================================================================
+@st.cache_data(show_spinner="📅 시그널 로딩…")
+def load_precomputed_history(profile_mode: str,
+                              sim_threshold: float,
+                              market_filter: bool) -> pd.DataFrame:
+    """오프라인 사전 계산 parquet를 로드 (즉시). 필터만 메모리에서."""
+    f = ROOT / "results" / f"history_signals_{profile_mode}.parquet"
+    if not f.exists():
+        return pd.DataFrame()
+    df = pd.read_parquet(f)
+    if sim_threshold > 0.6:
+        df = df[df["similarity"] >= sim_threshold]
+    if market_filter:
+        df = df[df["kospi_above"]]
+    return df
+
+
 @st.cache_data(show_spinner="📅 시그널 사전 계산 중 (2~4분, 1회만)…")
 def precompute_v3_signals(universe_tuple: tuple[str, ...],
                             sim_threshold: float = 0.6,
@@ -2881,18 +2897,15 @@ def page_history():
         empty_state("⚠️", "연도와 월을 1개 이상 선택하세요")
         return
 
-    # ===== 5) 유니버스 + 데이터 조회 =====
-    universe = cached_universe()
-    if cap_cutoff > 0:
-        listing = get_krx_listing()
-        eligible = set(listing[listing["Marcap"] >= cap_cutoff]["Code"])
-        universe = [t for t in universe if t in eligible]
-
-    df_all = precompute_v3_signals(tuple(universe), sim_threshold, market_filter_on,
-                                      profile_mode=profile_mode)
+    # ===== 5) 사전 계산된 parquet 로드 (즉시) =====
+    df_all = load_precomputed_history(profile_mode, sim_threshold, market_filter_on)
     if df_all.empty:
-        empty_state("🔭", "시그널 없음", "임계치를 낮춰보세요.")
+        empty_state("🔭", "시그널 없음", "사전 계산 parquet 없거나 필터가 너무 엄격함.")
         return
+
+    # 시총 컷오프 적용 (사전계산은 전체 universe 기준)
+    if cap_cutoff > 0:
+        df_all = df_all[df_all["marcap"] >= cap_cutoff].copy()
 
     # OOS only: 사례 마지막 시점 이후만
     if oos_only:
