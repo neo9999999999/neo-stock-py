@@ -2664,25 +2664,27 @@ def page_history():
                                  help="10만원 ~ 10억원. 손익금 계산용")
     buy_won = buy_man * 10000
 
-    # ===== 5) 추가 필터 (선택) =====
-    with st.expander("🔧 추가 필터 — 직접 임계치 조정 (선택)", expanded=False):
-        st.caption("프리셋 기본값에 추가 조건. 0 = 필터 미적용.")
-        f1, f2, f3 = st.columns(3)
-        f_value_min = f1.number_input("최소 거래대금 (억)", value=0, step=50,
-                                        min_value=0, format="%d", key="hf_val")
-        f_ret_min = f2.number_input("최소 당일 등락 (%)", value=0.0, step=1.0,
-                                      format="%.1f", key="hf_rmin",
-                                      help="예: 7% 이상만 보고 싶으면 7 입력")
-        f_ret_max = f3.number_input("최대 당일 등락 (%)", value=0.0, step=1.0,
-                                      format="%.1f", key="hf_rmax",
-                                      help="0이면 미적용")
-        f4, f5, f6 = st.columns(3)
-        f_ret20_min = f4.number_input("최소 직전20일 누적 (%)",
-                                        value=0.0, step=1.0, format="%.1f", key="hf_r20")
-        f_rsi_min = f5.number_input("최소 RSI", value=0, step=5,
-                                      min_value=0, max_value=100, format="%d", key="hf_rsim")
-        f_rsi_max = f6.number_input("최대 RSI", value=0, step=5,
-                                      min_value=0, max_value=100, format="%d", key="hf_rsiM")
+    # ===== 5) 필터 (디폴트 활성화 — 오늘의 추천과 동일) =====
+    st.markdown("##### 🔧 필터")
+    f1, f2, f3 = st.columns(3)
+    f_value_min = f1.number_input("최소 거래대금 (억)", value=50, step=10,
+                                    min_value=0, format="%d", key="hf_val")
+    fa, fb = f2.columns(2)
+    f_ret_min = fa.number_input("당일 등락 ≥ %", value=7.0, step=1.0,
+                                  format="%.1f", key="hf_rmin")
+    f_ret_max = fb.number_input("≤ %", value=29.0, step=1.0,
+                                  format="%.1f", key="hf_rmax")
+    f_ret20_min = f3.number_input("직전 20일 누적 ≥ %", value=20.0, step=1.0,
+                                    format="%.1f", key="hf_r20")
+    # 고급: RSI (기본 0 = 미적용)
+    with st.expander("🎚️ 고급 — RSI 필터 (선택)", expanded=False):
+        ra, rb = st.columns(2)
+        f_rsi_min = ra.number_input("최소 RSI", value=0, step=5,
+                                      min_value=0, max_value=100, format="%d",
+                                      key="hf_rsim")
+        f_rsi_max = rb.number_input("최대 RSI", value=0, step=5,
+                                      min_value=0, max_value=100, format="%d",
+                                      key="hf_rsiM")
 
     # ===== 6) 최종 요약 + 조회 버튼 (맨 아래) =====
     sel_years = sorted(st.session_state.hist_sel_years)
