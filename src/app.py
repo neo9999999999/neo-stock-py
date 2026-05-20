@@ -2603,14 +2603,15 @@ def page_history():
         st.markdown(
             '<div style="background:rgba(0,200,150,0.08);border-left:3px solid #00C896;'
             'padding:0.5rem 0.875rem;border-radius:6px;margin-bottom:0.75rem;font-size:0.8rem;color:#0B7950;">'
-            '<b>진짜 OOS</b>: 연도별 다른 profile (그 시점 이전 사례만 사용). 정직한 walk-forward.'
+            '<b>진짜 OOS</b>: 연도별 다른 profile (그 시점 이전 buy_date 사례만). 미래 정보 X. '
+            '<span style="color:#F04452;">⚠️ 2021년은 사례 부족(50건 미달)로 검증 불가 — 2022년부터.</span>'
             '</div>', unsafe_allow_html=True)
     else:
         st.markdown(
             '<div style="background:rgba(49,130,246,0.06);border-left:3px solid #3182F6;'
             'padding:0.5rem 0.875rem;border-radius:6px;margin-bottom:0.75rem;font-size:0.8rem;color:#1B4F8C;">'
             '<b>합본</b>: 사용자 39 + 마이닝 12,759 = 12,798 사례 단일 profile. '
-            '안정적이지만 2021~24 시그널엔 mild look-ahead 가능.'
+            '안정적이지만 2021~24 시그널엔 mild look-ahead 가능. 2021년 데이터 있음.'
             '</div>', unsafe_allow_html=True)
 
     sim_threshold = 0.6        # 사전계산 시 0.6 고정. 사용자에 노출 안 함.
