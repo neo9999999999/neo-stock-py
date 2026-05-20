@@ -325,36 +325,62 @@ def page_today():
         return
 
     # ===== 사전 계산된 parquet 로드 =====
-    sig_df = load_precomputed_history(profile_mode, 0.6, market_filter_on)
-    if sig_df.empty:
+    sig_df_all = load_precomputed_history(profile_mode, 0.6, market_filter_on)
+    if sig_df_all.empty:
         empty_state("🔭", "시그널 데이터 없음",
                      "사전 계산 parquet이 없습니다. precompute_history.py 실행 필요.")
         return
 
-    # 가장 최근 영업일 (parquet 마지막)
-    latest_date = sig_df["date"].max()
-    sig_df = sig_df[sig_df["date"] == latest_date].copy()
+    # 기준일 선택 (디폴트: 가장 최근)
+    avail_dates = sorted(sig_df_all["date"].unique(), reverse=True)
+    target_date_str = st.selectbox(
+        "📅 기준일 (parquet에 포함된 영업일)", avail_dates[:30],
+        index=0, key="today_date_select",
+        help="가장 최근부터 30개 영업일. 시그널 풍부한 날짜로 변경 가능.",
+    )
+    sig_df = sig_df_all[sig_df_all["date"] == target_date_str].copy()
+    n_initial = len(sig_df)
 
-    st.info(f"📅 시그널 기준일: **{latest_date}** "
-            f"(parquet 마지막 영업일). 추천 히스토리와 100% 동일 데이터.")
-
-    # 시총 컷오프
+    # 시총 + 사용자 필터 단계별 카운트
     if cap_cutoff > 0:
         sig_df = sig_df[sig_df["marcap"] >= cap_cutoff].copy()
-
-    # 사용자 필터
+    n_after_cap = len(sig_df)
     if f_value_min > 0:
         sig_df = sig_df[sig_df["value_eok"] >= f_value_min]
+    n_after_value = len(sig_df)
     if f_ret_min > 0:
         sig_df = sig_df[sig_df["ret_1d"] >= f_ret_min / 100]
     if f_ret_max > 0:
         sig_df = sig_df[sig_df["ret_1d"] <= f_ret_max / 100]
+    n_after_ret = len(sig_df)
     if f_ret20_min > 0:
         sig_df = sig_df[sig_df["ret_20d"] >= f_ret20_min / 100]
+    n_final = len(sig_df)
+
+    st.info(f"📅 기준일 **{target_date_str}** · "
+            f"전체 {n_initial} → 시총 {n_after_cap} → 대금 {n_after_value} → "
+            f"등락 {n_after_ret} → 20일 {n_final}개")
 
     if sig_df.empty:
+        # 가까운 풍부한 날짜 제안
+        suggestion = ""
+        for d in avail_dates[:30]:
+            test_df = sig_df_all[sig_df_all["date"] == d].copy()
+            if cap_cutoff > 0:
+                test_df = test_df[test_df["marcap"] >= cap_cutoff]
+            if f_value_min > 0:
+                test_df = test_df[test_df["value_eok"] >= f_value_min]
+            if f_ret_min > 0:
+                test_df = test_df[test_df["ret_1d"] >= f_ret_min / 100]
+            if f_ret_max > 0:
+                test_df = test_df[test_df["ret_1d"] <= f_ret_max / 100]
+            if f_ret20_min > 0:
+                test_df = test_df[test_df["ret_20d"] >= f_ret20_min / 100]
+            if len(test_df) > 0:
+                suggestion = f" 💡 **{d}**에 {len(test_df)}개 매칭 — 기준일 변경해보세요."
+                break
         empty_state("🔭", "조건 충족 종목 없음",
-                     "필터를 완화하거나 프리셋을 변경하세요.")
+                     f"이 날짜는 모멘텀 약함.{suggestion}")
         return
 
     # 유사도 순 + top N
