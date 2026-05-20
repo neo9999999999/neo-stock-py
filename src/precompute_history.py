@@ -64,7 +64,7 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
                   flush=True)
 
         try:
-            df = get_ohlcv(code, "20200601", "20260517")
+            df = get_ohlcv(code, "20200601", "20260520")
         except Exception:
             continue
         if df.empty or len(df) < 80:
@@ -157,7 +157,7 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
 
 def main():
     # 시장필터 인덱스
-    kospi = get_index_ohlcv("KS11", "20200101", "20260517")
+    kospi = get_index_ohlcv("KS11", "20200101", "20260520")
     kospi["ma20"] = kospi["close"].rolling(20).mean()
     market_above = kospi["close"] > kospi["ma20"]
 

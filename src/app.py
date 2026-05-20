@@ -269,300 +269,118 @@ def kpi_row(items: list[tuple[str, str, str, str]]):
 
 
 # ====================================================================
-# 페이지 1: 오늘의 추천
+# 페이지 1: 오늘의 추천 (추천 히스토리와 동일한 parquet 기반)
 # ====================================================================
 def page_today():
     hero(
         eyebrow="오늘의 스크리닝",
         title="오늘의 종가 베팅 후보",
-        lead="v3.7 (대형주) 권장 — 샤프 2.89로 최강. 30일 보유.",
+        lead="추천 히스토리와 동일한 시그널. 가장 최근 영업일 시그널 표시.",
     )
 
-    # 정직 디스클로저: 두 페이지 차이점
-    with st.expander("ℹ️ '오늘의 추천' vs '추천 히스토리' 차이점", expanded=False):
-        st.markdown(
-            "**공통**: 같은 사례 유사도 엔진(`add_signals_v3`), 동일한 39개 사례 profile (2025-01~2026-02).\n\n"
-            "**차이**:\n"
-            "- **시장 필터(KOSPI 20MA)**: 히스토리는 프리셋에 따라 자동 ON, 오늘 페이지는 적용 안 함.\n"
-            "- **유니버스**: 두 페이지 모두 같은 universe + 시총 컷오프 적용.\n"
-            "- **OOS 신뢰도**: 오늘(2026-05-19)은 사례 마지막 시점(2026-02-04) 이후라 **진짜 OOS**. "
-            "히스토리는 2025년 이전 구간이 in-sample 위험."
-        )
-
-    # 전략 프리셋 (셀렉트박스 + 정보 카드)
+    # ===== 프리셋 (히스토리와 동일) =====
     PRESETS_TODAY = {
-        "⭐ v3.7 — 시총 5천억+ + 시장필터 (추천)": {
-            "use_v3": True, "cap": 5e11, "market": True,
-            "sharpe": 2.48, "mean": 3.94, "stocks": 565,
-            "desc": "균형 잡힌 추천. 종목 다양성 + 우수한 성과",
-        },
-        "🏆 v3.7 — 시총 1조+ + 시장필터 (대형주 최강)": {
-            "use_v3": True, "cap": 1e12, "market": True,
-            "sharpe": 2.89, "mean": 4.75, "stocks": 366,
-            "desc": "가장 안정적. 외국인/기관 수급 명확한 대형주",
-        },
-        "📊 v3.1 — 전체 + 시장필터": {
-            "use_v3": True, "cap": 0, "market": True,
-            "sharpe": 1.47, "mean": 2.40, "stocks": 1534,
-            "desc": "중소형주 포함 — KOSPI 20일선 위에서만",
-        },
-        "🌐 v3.0 — 기본 (전체, 필터 없음)": {
-            "use_v3": True, "cap": 0, "market": False,
-            "sharpe": 1.02, "mean": 1.70, "stocks": 1534,
-            "desc": "시장 필터 없는 기본 사례 유사도",
-        },
-        "❌ v1 — 기존 5대 조건 (비추)": {
-            "use_v3": False, "cap": 0, "market": False,
-            "sharpe": 0.40, "mean": 0.17, "stocks": 1534,
-            "desc": "사례 95% 놓침 — 참고용",
-        },
+        "⭐ v3.7 (5천억+ + 시장필터, 추천)": (5e11, True),
+        "🏆 v3.7 대형주 (1조+ + 시장필터)": (1e12, True),
+        "📊 v3.1 (전체 + 시장필터)": (0, True),
+        "🌐 v3.0 (전체, 시장필터 X)": (0, False),
     }
-    preset = st.selectbox(
-        "🎯 전략 프리셋", list(PRESETS_TODAY.keys()),
-        index=0, key="today_preset",
+    preset = st.selectbox("🎯 프리셋", list(PRESETS_TODAY.keys()),
+                            index=0, key="today_preset")
+    cap_cutoff, market_filter_on = PRESETS_TODAY[preset]
+
+    # 정직성 모드 (히스토리와 동일)
+    strict_oos = st.toggle(
+        "🧪 진짜 OOS 모드",
+        value=False, key="today_strict_oos",
+        help="OFF: 합본 12,798 사례 단일 profile / ON: 연도별 walk-forward profile",
     )
-    cfg = PRESETS_TODAY[preset]
+    profile_mode = "oos_yearly" if strict_oos else "combined"
 
-    # 선택된 프리셋 정보 카드
-    tone = "success" if cfg["sharpe"] >= 1.5 else (
-        "warning" if cfg["sharpe"] >= 1.0 else "danger"
-    )
-    color = "#00C896" if tone == "success" else ("#FF9F2E" if tone == "warning" else "#F04452")
-    st.markdown(
-        f'<div style="display:flex;gap:1rem;padding:0.875rem 1.25rem;'
-        f'background:rgba(49,130,246,0.06);border-left:4px solid {color};'
-        f'border-radius:8px;margin-bottom:1rem;flex-wrap:wrap;">'
-        f'<div><b style="font-size:1rem;">샤프 {cfg["sharpe"]:.2f}</b></div>'
-        f'<div style="color:#4E5968;">평균 +{cfg["mean"]:.2f}%</div>'
-        f'<div style="color:#4E5968;">종목 풀 {cfg["stocks"]:,}개</div>'
-        f'<div style="color:#8B95A1;flex:1;text-align:right;">{cfg["desc"]}</div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+    # ===== 필터 (디폴트 활성화) =====
+    st.markdown("##### 🔧 필터")
+    fc1, fc2, fc3 = st.columns(3)
+    f_value_min = fc1.number_input("최소 거래대금 (억)", value=50, step=10,
+                                      min_value=0, format="%d", key="today_val_min")
+    fc_a, fc_b = fc2.columns(2)
+    f_ret_min = fc_a.number_input("당일 등락 ≥ %", value=7.0, step=1.0,
+                                     format="%.1f", key="today_ret_min")
+    f_ret_max = fc_b.number_input("≤ %", value=29.0, step=1.0,
+                                     format="%.1f", key="today_ret_max")
+    f_ret20_min = fc3.number_input("직전 20일 누적 ≥ %", value=20.0, step=1.0,
+                                       format="%.1f", key="today_ret20_min")
 
-    use_v3_today = cfg["use_v3"]
-    size_cutoff = cfg["cap"]
-    only_large_cap = size_cutoff > 0
-    apply_market_filter = cfg.get("market", False)
+    # ===== 추천 종목 수 =====
+    max_recommend = st.slider("📋 추천 종목 수", 1, 50, 10,
+                                key="today_topk",
+                                help="유사도 상위 N개만 표시")
 
-    # ===== 기준일 + 유사도 =====
-    dc1, dc2 = st.columns([1, 1])
-    target_date = dc1.date_input("📅 기준일", value=dt.date.today(),
-                                    max_value=dt.date.today(), key="today_date")
-    if use_v3_today:
-        sim_threshold = dc2.slider("유사도 임계치", 0.3, 0.9, 0.6, 0.05,
-                                     key="today_sim",
-                                     help="0.6=많이 잡힘, 0.8=빡빡(사례 같은 종목)")
-        require_score = 4
-    else:
-        require_score = dc2.selectbox("최소 충족 조건", [1, 2, 3, 4, 5],
-                                        index=3, key="today_minscore")
-        sim_threshold = 0.6
-
-    # ===== 추천 설정 (종목 수 + 매수금) — 히스토리와 동일 =====
-    st.markdown("##### ⚙️ 추천 설정")
-    tc1, tc2 = st.columns(2)
-    max_recommend = tc1.slider("추천 종목 수", 1, 30, 5, key="today_topk",
-                                 help="유사도 상위 N개만 표시")
-    today_buy_man = tc2.number_input("종목당 매수금 (만원)",
-                                       value=100, step=10, min_value=10, max_value=100000,
-                                       format="%d", key="today_buy_amt",
-                                       help="10만원 ~ 10억원. 표시용")
-    today_buy_won = today_buy_man * 10000
-
-    # ===== 추가 필터 — 히스토리와 동일 =====
-    with st.expander("🔧 추가 필터 — 직접 임계치 조정 (선택)", expanded=False):
-        st.caption("프리셋 기본값에 추가 조건. 0 = 필터 미적용.")
-        f1, f2, f3 = st.columns(3)
-        td_value_min = f1.number_input("최소 거래대금 (억)", value=50, step=10,
-                                         min_value=0, format="%d", key="td_val_min",
-                                         help="50억 미만 제외 권장")
-        td_vol_mult = f2.number_input("거래량 60일 ×배수", value=3.0, step=0.5,
-                                        format="%.1f", key="td_vol_mult_f")
-        td_close_high = f3.number_input("종가/고가 ≥", value=0.0, step=0.01,
-                                          format="%.2f", key="td_close_high_f",
-                                          help="0=미적용. 0.97 = 막판 매수세")
-        f4, f5, f6 = st.columns(3)
-        td_ret_min = f4.number_input("최소 당일 등락 (%)", value=0.0, step=1.0,
-                                       format="%.1f", key="td_ret_min_f",
-                                       help="예: 7 입력 시 +7% 이상만")
-        td_ret_max = f5.number_input("최대 당일 등락 (%)", value=0.0, step=1.0,
-                                       format="%.1f", key="td_ret_max_f",
-                                       help="0=미적용")
-        td_ret20_min = f6.number_input("최소 직전20일 누적 (%)", value=0.0, step=1.0,
-                                         format="%.1f", key="td_ret20_min_f")
-
-    # ===== 최종 요약 + 스크리닝 버튼 =====
-    extra_filters = []
-    if td_value_min > 0: extra_filters.append(f"대금≥{td_value_min}억")
-    if td_vol_mult != 3.0: extra_filters.append(f"거래량×{td_vol_mult:.1f}")
-    if td_close_high > 0: extra_filters.append(f"종/고≥{td_close_high:.2f}")
-    if td_ret_min > 0: extra_filters.append(f"당일≥{td_ret_min:.0f}%")
-    if td_ret_max > 0: extra_filters.append(f"당일≤{td_ret_max:.0f}%")
-    if td_ret20_min > 0: extra_filters.append(f"20일≥{td_ret20_min:.0f}%")
-    extra_str = " · ".join(extra_filters) if extra_filters else "기본값"
-
-    st.markdown(
-        f'<div style="padding:0.875rem 1.25rem;background:#F2F4F6;border-radius:8px;'
-        f'margin:1rem 0 0.5rem 0;color:#191F28;line-height:1.7;">'
-        f'📊 <b>최종 설정 요약</b><br>'
-        f'• 기준일: <b>{target_date}</b> · 유사도: <b>≥{sim_threshold:.2f}</b><br>'
-        f'• 추천: <b>{max_recommend}개</b> · 매수금: <b>{fmt_won_kr(today_buy_won)}</b><br>'
-        f'• 추가 필터: <b>{extra_str}</b>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-    run = st.button("🔍 스크리닝 — 위 설정으로 조회",
+    run = st.button("🔍 조회 — 가장 최근 영업일 시그널",
                       type="primary", use_container_width=True, key="today_run")
 
-    # v1 호환 임계치값 사용
-    min_value_eok = td_value_min if td_value_min > 0 else 50
-    volume_mult = td_vol_mult
-    high_window_today = 60
-    close_to_high = td_close_high if td_close_high > 0 else 0.70
-    ret_min = (td_ret_min / 100) if td_ret_min > 0 else 0.05
-    ret_max = (td_ret_max / 100) if td_ret_max > 0 else 0.30
-
-    p = Params(
-        min_value=min_value_eok * 1e8,
-        volume_mult=volume_mult,
-        high_window=int(high_window_today),
-        close_to_high=close_to_high,
-        daily_ret_min=ret_min,
-        daily_ret_max=ret_max,
-        require_score=int(require_score),
-    )
-    top_n_universe = 3000
-
     if not run:
-        empty_state("📊", "스크리닝 대기 중",
-                     "위에서 기준일과 조건을 선택하고 [스크리닝] 버튼을 누르세요.")
+        empty_state("📊", "조회 대기 중",
+                     "위에서 조건 선택 후 [조회] 버튼을 누르세요. "
+                     "추천 히스토리와 같은 사전 계산 시그널을 사용합니다 (즉시 결과).")
         return
 
-    date_str = target_date.strftime("%Y%m%d")
-    universe = cached_universe(n=int(top_n_universe))
+    # ===== 사전 계산된 parquet 로드 =====
+    sig_df = load_precomputed_history(profile_mode, 0.6, market_filter_on)
+    if sig_df.empty:
+        empty_state("🔭", "시그널 데이터 없음",
+                     "사전 계산 parquet이 없습니다. precompute_history.py 실행 필요.")
+        return
 
-    # 시총 컷오프 적용
-    if only_large_cap:
-        listing = get_krx_listing()
-        large_codes = set(listing[listing["Marcap"] >= size_cutoff]["Code"])
-        universe = [t for t in universe if t in large_codes]
-        cutoff_label = "5천억" if size_cutoff == 5e11 else "1조"
-        st.info(f"🎯 v3.7 프리셋: 시총 {cutoff_label}원 이상 **{len(universe)}종목**만 분석")
+    # 가장 최근 영업일 (parquet 마지막)
+    latest_date = sig_df["date"].max()
+    sig_df = sig_df[sig_df["date"] == latest_date].copy()
 
-    end_dt = dt.datetime.strptime(date_str, "%Y%m%d")
-    start_dt = end_dt - dt.timedelta(days=200)
-    target_dt = pd.to_datetime(date_str)
+    st.info(f"📅 시그널 기준일: **{latest_date}** "
+            f"(parquet 마지막 영업일). 추천 히스토리와 100% 동일 데이터.")
 
-    # 시장 필터: KOSPI 20일선 위인지 확인
-    kospi_above_ma = True
-    if apply_market_filter:
-        kospi = get_index_ohlcv("KS11", start_dt.strftime("%Y%m%d"), date_str)
-        if not kospi.empty:
-            kospi["ma20"] = kospi["close"].rolling(20).mean()
-            # 마지막 가용일 기준
-            last_row = kospi.iloc[-1]
-            kospi_above_ma = bool(last_row["close"] > last_row["ma20"])
-            if kospi_above_ma:
-                st.success(f"✅ 시장 필터 통과 — KOSPI {last_row['close']:.0f} > "
-                            f"20MA {last_row['ma20']:.0f}")
-            else:
-                st.error(f"❌ 시장 필터 차단 — KOSPI {last_row['close']:.0f} < "
-                          f"20MA {last_row['ma20']:.0f}. 이 프리셋은 매수 보류 권장.")
-                empty_state("🛑", "시장 필터에 의해 매수 보류",
-                             "KOSPI가 20일선 아래라 v3.7 전략 조건을 만족 안 함. "
-                             "프리셋을 'v3.0 (필터 없음)'으로 바꾸거나 시장 회복 대기.")
-                return
+    # 시총 컷오프
+    if cap_cutoff > 0:
+        sig_df = sig_df[sig_df["marcap"] >= cap_cutoff].copy()
 
-    progress = st.progress(0.0, text="OHLCV 로딩 중…")
-    results = []
+    # 사용자 필터
+    if f_value_min > 0:
+        sig_df = sig_df[sig_df["value_eok"] >= f_value_min]
+    if f_ret_min > 0:
+        sig_df = sig_df[sig_df["ret_1d"] >= f_ret_min / 100]
+    if f_ret_max > 0:
+        sig_df = sig_df[sig_df["ret_1d"] <= f_ret_max / 100]
+    if f_ret20_min > 0:
+        sig_df = sig_df[sig_df["ret_20d"] >= f_ret20_min / 100]
 
-    # v3 모드: 사례 프로파일 로드 (combined 합본 12,798)
-    case_profile = build_profile(combined=True) if use_v3_today else None
-
-    for i, ticker in enumerate(universe):
-        progress.progress((i + 1) / max(len(universe), 1),
-                          text=f"분석 중 ({i+1}/{len(universe)}) {ticker}")
-        try:
-            hist = get_ohlcv(ticker, start_dt.strftime("%Y%m%d"), date_str)
-            hw = 60   # 신고가/RSI 윈도우 고정
-            if hist.empty or len(hist) < hw or target_dt not in hist.index:
-                continue
-
-            if use_v3_today:
-                # v3 시그널 계산
-                p_v3 = ParamsV3(min_similarity=sim_threshold)
-                sig = add_signals_v3(hist, case_profile, p_v3)
-                if target_dt not in sig.index:
-                    continue
-                row = sig.loc[target_dt]
-                if not bool(row.get("signal", False)):
-                    continue
-                today = hist.loc[target_dt]
-                prev_close = hist.iloc[-2]["close"]
-                ret = (today["close"] / prev_close) - 1
-                avg_vol = hist.iloc[-60:]["volume"].mean()
-                high_n = hist.iloc[-60:]["high"].max()
-                results.append({
-                    "ticker": ticker,
-                    "name": get_name(ticker),
-                    "score": int(row["similarity"] * 10),  # 0~10 표시용
-                    "similarity": float(row["similarity"]),
-                    "close": int(today["close"]),
-                    "ret_pct": round(ret * 100, 2),
-                    "ret_20d_pct": round(float(row.get("ret_20d", 0)) * 100, 2),
-                    "value_eok": today["value"] / 1e8,
-                    "vol_ratio": today["volume"] / avg_vol,
-                    "close_to_high": today["close"] / today["high"],
-                    "rsi": float(row.get("rsi_14", 0)),
-                    "high_60": int(high_n),
-                    "is_new_high": today["close"] >= high_n,
-                })
-            else:
-                hn = hist.iloc[-hw:]
-                high_n = hn["high"].max()
-                avg_vol = hn["volume"].mean()
-                today = hist.loc[target_dt]
-                prev_close = hist.iloc[-2]["close"] if len(hist) > 1 else today["close"]
-                ret = (today["close"] / prev_close) - 1
-
-                score = 0
-                score += int(today["close"] >= high_n)
-                score += int(today["volume"] >= avg_vol * p.volume_mult)
-                score += int(today["value"] >= p.min_value)
-                score += int(today["close"] >= today["high"] * p.close_to_high)
-                score += int(p.daily_ret_min <= ret <= p.daily_ret_max)
-
-                if score >= p.require_score:
-                    results.append({
-                        "ticker": ticker,
-                        "name": get_name(ticker),
-                        "score": score,
-                        "similarity": 0.0,
-                        "close": int(today["close"]),
-                        "ret_pct": round(ret * 100, 2),
-                        "ret_20d_pct": 0.0,
-                        "value_eok": today["value"] / 1e8,
-                        "vol_ratio": today["volume"] / avg_vol,
-                        "close_to_high": today["close"] / today["high"],
-                        "rsi": 0.0,
-                        "high_60": int(high_n),
-                        "is_new_high": today["close"] >= high_n,
-                    })
-        except Exception:
-            continue
-    progress.empty()
-
-    if not results:
+    if sig_df.empty:
         empty_state("🔭", "조건 충족 종목 없음",
-                     "임계치를 낮추거나 다른 날짜를 시도해보세요.")
+                     "필터를 완화하거나 프리셋을 변경하세요.")
         return
 
-    # v3: 유사도 순 / v1: 거래대금 순, 상위 N개만
-    sort_col = "similarity" if use_v3_today else "value_eok"
-    df = pd.DataFrame(results).sort_values(sort_col, ascending=False).reset_index(drop=True)
-    if len(df) > max_recommend:
-        df = df.head(int(max_recommend))
+    # 유사도 순 + top N
+    sig_df = sig_df.sort_values("similarity", ascending=False).head(int(max_recommend))
+
+    # page_today 표시용 DataFrame으로 변환
+    results = []
+    for _, r in sig_df.iterrows():
+        results.append({
+            "ticker": r["ticker"],
+            "name": r["name"],
+            "score": int(r["similarity"] * 10),
+            "similarity": float(r["similarity"]),
+            "close": int(r["close"]),
+            "ret_pct": round(float(r["ret_1d"]) * 100, 2),
+            "ret_20d_pct": round(float(r["ret_20d"]) * 100, 2),
+            "value_eok": float(r["value_eok"]),
+            "vol_ratio": float(r["vol_ratio"]),
+            "close_to_high": float(r["close_to_high"]),
+            "rsi": float(r["rsi"]),
+            "high_60": 0,
+            "is_new_high": False,
+        })
+    df = pd.DataFrame(results).reset_index(drop=True)
+    use_v3_today = True
+    today_buy_won = 0          # 매수금 표시 안 함
 
     # 요약 KPI
     section_title("요약")
