@@ -132,13 +132,15 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
             })
 
     df_out = pd.DataFrame(rows)
-    # dtype 최적화로 파일 크기 줄이기
-    for c in ("year", "month", "marcap"):
+    # dtype 최적화로 파일 크기 줄이기 (단, marcap은 int64 유지 — 조 단위 overflow 방지)
+    for c in ("year", "month"):
         if c in df_out.columns:
             df_out[c] = df_out[c].astype("int32")
     for c in ("close",):
         if c in df_out.columns:
             df_out[c] = df_out[c].astype("int32")
+    if "marcap" in df_out.columns:
+        df_out["marcap"] = df_out["marcap"].astype("int64")
     for c in ("similarity", "ret_1d", "ret_20d", "value_eok", "vol_ratio",
                "rsi", "close_to_high",
                "ret_d1", "ret_d10", "ret_d30", "ret_d60", "ret_d90", "ret_d120"):
