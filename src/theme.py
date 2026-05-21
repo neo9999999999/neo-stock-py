@@ -251,12 +251,20 @@ section[data-testid="stSidebar"] *{color:var(--fg-2);}
 }
 .stButton > button[kind="primary"]{
   background:var(--accent-bg) !important;
-  color:var(--accent-fg) !important;
+  color:#FFFFFF !important;
+  font-weight:700 !important;
   border-color:var(--accent-bg) !important;
+}
+.stButton > button[kind="primary"] *,
+.stButton > button[kind="primary"] p,
+.stButton > button[kind="primary"] div{
+  color:#FFFFFF !important;
+  font-weight:700 !important;
 }
 .stButton > button[kind="primary"]:hover{
   background:var(--accent-bg-hover) !important;
   border-color:var(--accent-bg-hover) !important;
+  color:#FFFFFF !important;
 }
 
 /* Inputs / Select */
@@ -888,7 +896,14 @@ section[data-testid="stSidebar"] b{color:#ECEEF5 !important;}
 .stButton > button[kind="primary"]{
   background:#4F5DE8 !important;
   color:#FFFFFF !important;
+  font-weight:700 !important;
   border-color:#4F5DE8 !important;
+}
+.stButton > button[kind="primary"] *,
+.stButton > button[kind="primary"] p,
+.stButton > button[kind="primary"] div{
+  color:#FFFFFF !important;
+  font-weight:700 !important;
 }
 
 /* Slider track / handle */
