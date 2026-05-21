@@ -255,7 +255,7 @@ def page_today():
     # 정직성 모드 (히스토리와 동일)
     strict_oos = st.toggle(
         "🧪 진짜 OOS 모드",
-        value=False, key="today_strict_oos",
+        value=True, key="today_strict_oos",
         help="OFF: 합본 12,798 사례 단일 profile / ON: 연도별 walk-forward profile",
     )
     profile_mode = "oos_yearly" if strict_oos else "combined"
@@ -691,16 +691,24 @@ def page_backtest():
         lead="2021–2026 · 시총 2,000억 이상 1,057종목. 디폴트값으로 자동 실행. 한국식 색상(빨강=익절, 파랑=손절).",
     )
 
-    # In-sample 경고
-    st.markdown(
-        '<div style="background:rgba(240,68,82,0.06);border-left:4px solid #F04452;'
-        'padding:0.75rem 1rem;border-radius:8px;margin-bottom:0.875rem;font-size:0.875rem;line-height:1.5;">'
-        '⚠️ <b>이 페이지는 전체 기간 in-sample 백테스트</b>입니다. '
-        '사례 profile(2025~) 기반이라 2024년 이전 결과는 look-ahead bias 포함. '
-        '진짜 OOS 평가는 <b>워크포워드</b> 페이지의 v3.8 결과를 참고하세요.'
-        '</div>',
-        unsafe_allow_html=True,
+    # OOS 토글 (디폴트 ON = 정직)
+    bt_strict_oos = st.toggle(
+        "🧪 진짜 OOS 모드",
+        value=True, key="bt_strict_oos",
+        help="ON (디폴트, 추천): 각 시점 이전 사례만으로 profile 빌드 → "
+             "look-ahead bias 제거. 2021년 시그널 적을 수 있음.\n\n"
+             "OFF: 합본 12,798 사례 단일 profile → 표본 풍부하지만 2021~24에 "
+             "mild in-sample bias 가능.",
     )
+    if not bt_strict_oos:
+        st.markdown(
+            '<div style="background:rgba(240,68,82,0.06);border-left:4px solid #F04452;'
+            'padding:0.75rem 1rem;border-radius:8px;margin-bottom:0.875rem;font-size:0.875rem;line-height:1.5;">'
+            '⚠️ <b>합본 모드</b>: 사례 profile에 2025년 데이터까지 포함. '
+            '2021~24 결과는 look-ahead bias 가능. 정직한 평가는 토글 ON으로.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
     # 첫 진입 시 자동 실행 + 캐시 강제 클리어
     if "bt_first_run" not in st.session_state:
         st.session_state.bt_first_run = True
@@ -875,7 +883,12 @@ def page_backtest():
             stop_loss=stop_loss,
             cost_per_trade=cost / 100,
         )
-        case_profile = build_profile()
+        # OOS 모드면 백테스트 시작 시점 이전 사례만으로 profile
+        if bt_strict_oos:
+            asof = f"{start[:4]}-{start[4:6]}-{start[6:]}"
+            case_profile = build_profile(combined=True, asof_date=asof)
+        else:
+            case_profile = build_profile(combined=True)
     elif use_v2:
         p = ParamsV2(
             min_value=min_value_eok * 1e8,
@@ -2570,7 +2583,7 @@ def page_history():
     # 단일 토글: 정직성 모드 (합본 ↔ 진짜 OOS)
     strict_oos = st.toggle(
         "🧪 진짜 OOS 모드",
-        value=False, key="hist_strict_oos",
+        value=True, key="hist_strict_oos",
         help=("OFF (디폴트): 사례 합본 12,798개로 한 profile → 모든 시그널 계산. "
               "안정적·표본 풍부.\n\n"
               "ON: 각 연도 시작 시점 이전 사례만으로 profile 빌드 → "
