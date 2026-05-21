@@ -58,45 +58,8 @@ if "theme" not in st.session_state:
 inject_css(st.session_state.theme)
 
 
-# ====================================================================
-# 비밀번호 게이트 (Streamlit Cloud secrets.APP_PASSWORD)
-# ====================================================================
-def _password_gate() -> bool:
-    expected = None
-    try:
-        expected = st.secrets.get("APP_PASSWORD")
-    except Exception:
-        expected = None
-    if not expected:
-        return True          # 로컬: secrets 없으면 게이트 비활성
-    if st.session_state.get("_auth_ok"):
-        return True
-
-    st.markdown(
-        '<div style="max-width:420px;margin:6rem auto 2rem auto;text-align:center;">'
-        '<div style="font-size:2.5rem;margin-bottom:0.5rem;">🔒</div>'
-        '<h2 style="margin:0 0 0.25rem 0;color:#191F28;">종가 베팅 대시보드</h2>'
-        '<p style="color:#8B95A1;margin:0 0 1.5rem 0;font-size:0.875rem;">'
-        '접속 비밀번호를 입력하세요.</p>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-    col_l, col_c, col_r = st.columns([1, 2, 1])
-    with col_c:
-        pw = st.text_input("비밀번호", type="password",
-                            label_visibility="collapsed",
-                            placeholder="비밀번호 입력 후 Enter",
-                            key="_auth_input")
-        if pw:
-            if pw == expected:
-                st.session_state._auth_ok = True
-                st.rerun()
-            else:
-                st.error("비밀번호가 일치하지 않습니다.")
-    st.stop()
-
-
-_password_gate()
+# 비밀번호 게이트 제거됨 — 누구나 접속 가능
+# (이전 _password_gate() / APP_PASSWORD secret 의존 코드 제거)
 
 
 # ====================================================================
@@ -2662,46 +2625,38 @@ def page_history():
         unsafe_allow_html=True,
     )
 
-    # ===== 2) 연도 토글 =====
-    st.markdown("##### 📅 연도")
-    years = [2021, 2022, 2023, 2024, 2025, 2026]
-    ycols = st.columns(len(years))
-    for col, y in zip(ycols, years):
-        is_on = y in st.session_state.hist_sel_years
-        if col.button(str(y), key=f"hist_y_{y}",
-                       type="primary" if is_on else "secondary",
-                       use_container_width=True):
-            (st.session_state.hist_sel_years.discard(y) if is_on
-             else st.session_state.hist_sel_years.add(y))
-            st.rerun()
+    # ===== 2) 연도/월 — multiselect (모바일 친화) =====
+    ymc1, ymc2 = st.columns(2)
+    years_all = [2021, 2022, 2023, 2024, 2025, 2026]
+    months_all = list(range(1, 13))
+    sel_years_list = ymc1.multiselect(
+        "📅 연도", years_all,
+        default=sorted(st.session_state.hist_sel_years),
+        key="hist_years_ms",
+        help="여러 개 선택 가능",
+    )
+    sel_months_list = ymc2.multiselect(
+        "📅 월", months_all,
+        default=sorted(st.session_state.hist_sel_months),
+        format_func=lambda m: f"{m}월",
+        key="hist_months_ms",
+        help="여러 개 선택 가능",
+    )
+    st.session_state.hist_sel_years = set(sel_years_list)
+    st.session_state.hist_sel_months = set(sel_months_list)
 
-    # ===== 3) 월 토글 (6개씩 2줄) =====
-    st.markdown("##### 📅 월")
-    for row_start in [1, 7]:
-        cols = st.columns(6)
-        for col, m in zip(cols, range(row_start, row_start + 6)):
-            is_on = m in st.session_state.hist_sel_months
-            if col.button(f"{m}월", key=f"hist_m_{m}",
-                           type="primary" if is_on else "secondary",
-                           use_container_width=True):
-                (st.session_state.hist_sel_months.discard(m) if is_on
-                 else st.session_state.hist_sel_months.add(m))
-                st.rerun()
-
-    # 빠른 선택 헬퍼
-    qc1, qc2, qc3, qc4, qc5 = st.columns(5)
-    if qc1.button("전체", use_container_width=True, key="hist_all_m"):
+    # 빠른 선택 — 4컬럼으로 줄임
+    qc1, qc2, qc3, qc4 = st.columns(4)
+    if qc1.button("전체 월", use_container_width=True, key="hist_all_m"):
         st.session_state.hist_sel_months = set(range(1, 13)); st.rerun()
     if qc2.button("1Q", use_container_width=True, key="hist_q1"):
         st.session_state.hist_sel_months = {1, 2, 3}; st.rerun()
-    if qc3.button("2Q", use_container_width=True, key="hist_q2"):
-        st.session_state.hist_sel_months = {4, 5, 6}; st.rerun()
-    if qc4.button("최근 3개월", use_container_width=True, key="hist_recent"):
+    if qc3.button("최근 3개월", use_container_width=True, key="hist_recent"):
         from datetime import date
         m = date.today().month
         st.session_state.hist_sel_months = {((m - i - 1) % 12) + 1 for i in range(3)}
         st.rerun()
-    if qc5.button("해제", use_container_width=True, key="hist_clr_m"):
+    if qc4.button("해제", use_container_width=True, key="hist_clr_m"):
         st.session_state.hist_sel_months = set(); st.rerun()
 
     # ===== 4) 추천 설정 (종목 수 + 매수금) =====

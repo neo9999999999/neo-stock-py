@@ -613,22 +613,30 @@ section[data-testid="stSidebar"] *{color:var(--fg-2);}
 }
 
 /* ============================================================================
+   태블릿/모바일 (≤1024px) — Streamlit columns 자동 stack 방지
+   ============================================================================ */
+@media (max-width: 1024px) {
+  /* Streamlit columns 가로 유지 — 모든 디바이스 */
+  [data-testid="stHorizontalBlock"],
+  div[class^="row-widget"]{
+    flex-direction:row !important;
+    flex-wrap:wrap !important;
+    gap:0.25rem !important;
+  }
+  [data-testid="stHorizontalBlock"] > [data-testid="column"],
+  [data-testid="stHorizontalBlock"] > div{
+    min-width:0 !important;
+    width:auto !important;
+    flex:1 1 calc(50% - 0.25rem) !important;
+  }
+}
+
+/* ============================================================================
    모바일 반응형 (≤768px) — 핵심
    ============================================================================ */
 @media (max-width: 768px) {
   /* 페이지 패딩 줄임 */
   .block-container{padding-left:0.875rem !important;padding-right:0.875rem !important;padding-top:0.875rem !important;}
-
-  /* Streamlit columns 가로 유지 (자동 stack 방지) */
-  [data-testid="stHorizontalBlock"]{
-    flex-direction:row !important;
-    flex-wrap:wrap !important;
-    gap:0.25rem !important;
-  }
-  [data-testid="stHorizontalBlock"] > [data-testid="column"]{
-    min-width:0 !important;
-    flex:1 1 calc(50% - 0.25rem) !important;
-  }
 
   /* Hero 축소 */
   .hero h1{font-size:var(--fs-xl) !important;}
