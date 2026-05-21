@@ -1206,8 +1206,10 @@ def bento(label: str, value: str, sub: str = "", tone: str = ""):
 def stock_card_html(rank: int, name: str, ticker: str, score: int,
                     close: int, ret_pct: float, value_eok: float,
                     vol_ratio: float, close_to_high: float, is_new_high: bool,
-                    themes: list[str] | None = None,
-                    news: list[dict] | None = None) -> str:
+                    themes=None,
+                    news=None,
+                    current_price: int = 0,
+                    current_change_pct: float = 0.0) -> str:
     is_leader = rank == 1
     rank_cls = " leader" if is_leader else ""
     score_cls = f"s{min(score, 5)}"
@@ -1269,8 +1271,23 @@ def stock_card_html(rank: int, name: str, ticker: str, score: int,
         f'{theme_html}{news_html}'
         f'</div>'
         f'<div class="stats">'
-        f'<div class="price">{close:,}원</div>'
-        f'<div class="change {change_cls}">{"+" if ret_pct >= 0 else ""}{ret_pct:.2f}%</div>'
+    )
+    # 현재가가 있으면 메인으로 표시, 시그널일 종가는 작게
+    if current_price > 0 and current_price != close:
+        cur_cls = "up" if current_change_pct > 0 else "down"
+        cur_sign = "+" if current_change_pct >= 0 else ""
+        html += (
+            f'<div class="price">{current_price:,}원</div>'
+            f'<div class="change {cur_cls}">{cur_sign}{current_change_pct:.2f}%</div>'
+            f'<div style="font-size:0.7rem;color:#8B95A1;margin-top:0.25rem;">'
+            f'시그널일 {close:,}원 · {"+" if ret_pct >= 0 else ""}{ret_pct:.2f}%</div>'
+        )
+    else:
+        html += (
+            f'<div class="price">{close:,}원</div>'
+            f'<div class="change {change_cls}">{"+" if ret_pct >= 0 else ""}{ret_pct:.2f}%</div>'
+        )
+    html += (
         f'</div>'
         f'</div>'
     )
@@ -1281,7 +1298,7 @@ def theme_card_html(rank: int, name: str, change_pct: float, top_name: str,
                      theme_url: str = "",
                      rise_count: int = 0, fall_count: int = 0,
                      total_count: int = 0,
-                     strength: float | None = None) -> str:
+                     strength=None) -> str:
     change_cls = "up" if change_pct > 0 else "down"
     sign = "+" if change_pct >= 0 else ""
 

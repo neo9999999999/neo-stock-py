@@ -442,6 +442,21 @@ def page_today():
     use_v3_today = True
     today_buy_won = 0          # 매수금 표시 안 함
 
+    # 현재가 + 현재 등락률 (네이버 모바일 API, 실시간)
+    with st.spinner("현재가 로딩…"):
+        current_prices = []
+        current_changes = []
+        for _, r in df.iterrows():
+            try:
+                cur = scraper.fetch_stock_current(r["ticker"])
+                current_prices.append(cur.get("current_price", r["close"]))
+                current_changes.append(cur.get("change_pct", r["ret_pct"]))
+            except Exception:
+                current_prices.append(int(r["close"]))
+                current_changes.append(float(r["ret_pct"]))
+        df["current_price"] = current_prices
+        df["current_change_pct"] = current_changes
+
     # 요약 KPI
     section_title("요약")
     kpi_row([
@@ -570,6 +585,8 @@ def page_today():
                     is_new_high=bool(row["is_new_high"]),
                     themes=themes_with_badge,
                     news=row["news"],
+                    current_price=int(row.get("current_price", 0)),
+                    current_change_pct=float(row.get("current_change_pct", 0)),
                 ))
             st.markdown("\n".join(cards_html), unsafe_allow_html=True)
 

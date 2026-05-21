@@ -223,6 +223,37 @@ def fetch_themes_weighted(
     return base
 
 
+# ----- 종목 현재가 (네이버 모바일 단일 종목 API) ----------------------------
+
+def fetch_stock_current(code: str) -> dict:
+    """종목 현재가 + 등락률 (실시간). 시그널 기준일 이후 가격 변화를 보여주기 위해 사용."""
+    cache_key = f"current_{code}"
+    cached = _cached(cache_key)
+    if cached is not None:
+        return cached
+
+    url = f"{API_BASE.replace('/stocks','/stock')}/{code}/basic"
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=5)
+        data = r.json()
+    except Exception:
+        return {}
+
+    try:
+        result = {
+            "code": code,
+            "name": data.get("stockName", ""),
+            "current_price": int(data.get("closePrice", "0").replace(",", "")),
+            "change_pct": float(data.get("fluctuationsRatio", "0")),
+            "market_status": data.get("marketStatus", ""),
+            "traded_at": data.get("localTradedAt", ""),
+        }
+    except (TypeError, ValueError, AttributeError):
+        return {}
+    _put(cache_key, result)
+    return result
+
+
 # ----- 종목별 뉴스 (네이버 금융 HTML) ---------------------------------------
 
 def fetch_stock_news(code: str, limit: int = 5) -> list[News]:
