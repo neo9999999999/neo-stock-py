@@ -11,9 +11,9 @@
 """
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 class CaseProfile:
     """사례 39개의 통계적 프로파일."""
     # 각 지표의 (평균, 표준편차, 25분위, 75분위, 10분위, 90분위)
-    indicators: dict[str, dict]
+    indicators: Dict = field(default_factory=dict)
 
     @classmethod
     def from_cases(cls, cases_df: pd.DataFrame) -> "CaseProfile":
@@ -55,8 +55,7 @@ class CaseProfile:
         return cls(indicators=indicators)
 
 
-def compute_similarity(row: dict, profile: CaseProfile,
-                        strict: bool = False) -> tuple[float, dict]:
+def compute_similarity(row, profile, strict=False):
     """신규 시그널 row가 사례 프로파일과 얼마나 유사한가.
 
     각 지표가 사례의 [q25, q75] 핵심 영역에 들면 1점,
