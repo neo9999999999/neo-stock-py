@@ -307,7 +307,7 @@ def page_today():
                                      format="%.1f", key="today_ret_min")
     f_ret_max = fc_b.number_input("≤ %", value=29.0, step=1.0,
                                      format="%.1f", key="today_ret_max")
-    f_ret20_min = fc3.number_input("직전 20일 누적 ≥ %", value=20.0, step=1.0,
+    f_ret20_min = fc3.number_input("직전 20일 누적 ≥ %", value=10.0, step=1.0,
                                        format="%.1f", key="today_ret20_min")
 
     # 보조지표 필터 (검증 TOP 2 — bb_width, env_ma60)
@@ -2718,7 +2718,7 @@ def page_history():
                                   format="%.1f", key="hf_rmin")
     f_ret_max = fb.number_input("≤ %", value=29.0, step=1.0,
                                   format="%.1f", key="hf_rmax")
-    f_ret20_min = f3.number_input("직전 20일 누적 ≥ %", value=20.0, step=1.0,
+    f_ret20_min = f3.number_input("직전 20일 누적 ≥ %", value=10.0, step=1.0,
                                     format="%.1f", key="hf_r20")
     # 보조지표 필터 (검증 TOP 2)
     st.markdown("##### 📊 보조지표 필터 (검증 TOP 2)")
