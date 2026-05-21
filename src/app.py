@@ -444,23 +444,14 @@ def page_today():
 
     # 요약 KPI
     section_title("요약")
-    if use_v3_today:
-        kpi_row([
-            ("후보 종목", f"{len(df)}", f"유니버스 {len(universe)}개 중", ""),
-            ("유사도 0.8+", f"{(df['similarity']>=0.8).sum()}", "사례와 거의 동일", "success"),
-            ("유사도 0.7+", f"{(df['similarity']>=0.7).sum()}", "사례 강한 일치",
-             "success" if (df['similarity']>=0.7).sum() > 0 else ""),
-            ("최고 유사도", f"{df.iloc[0]['similarity']:.2f}",
-             df.iloc[0]['name'][:12], "success"),
-        ])
-    else:
-        kpi_row([
-            ("후보 종목", f"{len(df)}", f"유니버스 {len(universe)}개 중", ""),
-            ("5점 만점", f"{(df['score']==5).sum()}", "모든 조건 충족", "success"),
-            ("4점", f"{(df['score']==4).sum()}", "1개 조건 미달", "warning" if (df['score']==4).sum() > 0 else ""),
-            ("대장주", df.iloc[0]['name'][:12] + "..." if len(df.iloc[0]['name']) > 12 else df.iloc[0]['name'],
-             f"거래대금 {df.iloc[0]['value_eok']:.0f}억", ""),
-        ])
+    kpi_row([
+        ("후보 종목", f"{len(df)}", f"기준일 {target_date_str}", ""),
+        ("유사도 0.8+", f"{(df['similarity']>=0.8).sum()}", "사례와 거의 동일", "success"),
+        ("유사도 0.7+", f"{(df['similarity']>=0.7).sum()}", "사례 강한 일치",
+         "success" if (df['similarity']>=0.7).sum() > 0 else ""),
+        ("최고 유사도", f"{df.iloc[0]['similarity']:.2f}",
+         df.iloc[0]['name'][:12], "success"),
+    ])
 
     # 테마/뉴스 enrich
     tc1, tc2 = st.columns(2)
