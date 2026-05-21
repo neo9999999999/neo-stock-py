@@ -224,35 +224,40 @@ section[data-testid="stSidebar"]{
 }
 section[data-testid="stSidebar"] *{color:var(--fg-2);}
 
-/* Buttons — Streamlit 기본 버튼 */
+/* Buttons — Streamlit 기본 버튼 (디자인 시스템 .btn 매핑) */
 .stButton > button, .stDownloadButton > button{
-  font-family:var(--font-sans);
-  font-size:var(--fs-md);
-  font-weight:var(--fw-medium);
-  border-radius:var(--radius-md);
-  border:1px solid var(--border-default);
-  background:var(--bg-surface);
-  color:var(--fg-1);
-  padding:0.5rem 1rem;
+  font-family:var(--font-sans) !important;
+  font-size:var(--fs-md) !important;
+  font-weight:var(--fw-medium) !important;
+  border-radius:var(--radius-md) !important;
+  border:1px solid var(--border-default) !important;
+  background:var(--bg-surface) !important;
+  color:var(--fg-1) !important;
+  height:36px !important;
+  padding:0 var(--space-4) !important;
+  line-height:1 !important;
+  white-space:nowrap;
   transition:all var(--dur-fast) var(--ease-standard);
-  box-shadow:var(--shadow-xs);
+  box-shadow:none;
 }
-.stButton > button:hover{
-  background:var(--bg-hover);
-  border-color:var(--border-strong);
-  box-shadow:var(--shadow-1);
+.stButton > button:hover, .stDownloadButton > button:hover{
+  background:var(--bg-hover) !important;
+  border-color:var(--border-strong) !important;
 }
-.stButton > button:focus{
-  box-shadow:var(--shadow-focus);
+.stButton > button:active{transform:scale(0.98);}
+.stButton > button:focus, .stButton > button:focus-visible{
+  box-shadow:var(--shadow-focus) !important;
   outline:none;
 }
-.stButton > button[kind="primary"],
-.stButton > button[data-baseweb="button"][kind="primary"]{
+.stButton > button[kind="primary"]{
   background:var(--accent-bg) !important;
   color:var(--accent-fg) !important;
   border-color:var(--accent-bg) !important;
 }
-.stButton > button[kind="primary"]:hover{background:var(--accent-bg-hover) !important;}
+.stButton > button[kind="primary"]:hover{
+  background:var(--accent-bg-hover) !important;
+  border-color:var(--accent-bg-hover) !important;
+}
 
 /* Inputs / Select */
 .stTextInput input, .stNumberInput input,
@@ -613,22 +618,35 @@ section[data-testid="stSidebar"] *{color:var(--fg-2);}
 }
 
 /* ============================================================================
-   태블릿/모바일 (≤1024px) — Streamlit columns 자동 stack 방지
+   Streamlit columns 모바일 stack 방지 — 모든 너비에서 가로 유지
+   ============================================================================
+   Streamlit이 모바일에서 flex-direction을 column으로 바꾸는 걸 강제로 막음.
+   기본 selector + emotion 클래스 + min-width 0 콤보로 모든 변종 커버.
    ============================================================================ */
-@media (max-width: 1024px) {
-  /* Streamlit columns 가로 유지 — 모든 디바이스 */
-  [data-testid="stHorizontalBlock"],
-  div[class^="row-widget"]{
-    flex-direction:row !important;
-    flex-wrap:wrap !important;
-    gap:0.25rem !important;
-  }
-  [data-testid="stHorizontalBlock"] > [data-testid="column"],
-  [data-testid="stHorizontalBlock"] > div{
-    min-width:0 !important;
-    width:auto !important;
-    flex:1 1 calc(50% - 0.25rem) !important;
-  }
+[data-testid="stHorizontalBlock"]{
+  display:flex !important;
+  flex-direction:row !important;
+  flex-wrap:nowrap !important;
+  gap:0.5rem !important;
+  width:100% !important;
+}
+[data-testid="stHorizontalBlock"] > [data-testid="column"],
+[data-testid="stHorizontalBlock"] > div[data-testid^="column"]{
+  flex:1 1 0 !important;
+  min-width:0 !important;
+  width:0 !important;
+}
+/* 6개 이상 columns이 있을 때(연도 6개 / 월 6개) 가로 wrap 허용 */
+[data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(6)){
+  flex-wrap:wrap !important;
+}
+/* 버튼이 너무 좁아져도 텍스트 표시 */
+[data-testid="stHorizontalBlock"] button{
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  padding-left:0.4rem !important;
+  padding-right:0.4rem !important;
 }
 
 /* ============================================================================

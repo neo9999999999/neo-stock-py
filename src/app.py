@@ -2625,33 +2625,39 @@ def page_history():
         unsafe_allow_html=True,
     )
 
-    # ===== 2) 연도/월 — multiselect (모바일 친화) =====
-    ymc1, ymc2 = st.columns(2)
-    years_all = [2021, 2022, 2023, 2024, 2025, 2026]
-    months_all = list(range(1, 13))
-    sel_years_list = ymc1.multiselect(
-        "📅 연도", years_all,
-        default=sorted(st.session_state.hist_sel_years),
-        key="hist_years_ms",
-        help="여러 개 선택 가능",
-    )
-    sel_months_list = ymc2.multiselect(
-        "📅 월", months_all,
-        default=sorted(st.session_state.hist_sel_months),
-        format_func=lambda m: f"{m}월",
-        key="hist_months_ms",
-        help="여러 개 선택 가능",
-    )
-    st.session_state.hist_sel_years = set(sel_years_list)
-    st.session_state.hist_sel_months = set(sel_months_list)
+    # ===== 2) 연도 토글 (한 줄, 가로 유지 강제) =====
+    st.markdown("##### 📅 연도")
+    years = [2021, 2022, 2023, 2024, 2025, 2026]
+    ycols = st.columns(len(years))
+    for col, y in zip(ycols, years):
+        is_on = y in st.session_state.hist_sel_years
+        if col.button(str(y), key=f"hist_y_{y}",
+                       type="primary" if is_on else "secondary",
+                       use_container_width=True):
+            (st.session_state.hist_sel_years.discard(y) if is_on
+             else st.session_state.hist_sel_years.add(y))
+            st.rerun()
 
-    # 빠른 선택 — 4컬럼으로 줄임
+    # ===== 3) 월 토글 (6×2) =====
+    st.markdown("##### 📅 월")
+    for row_start in [1, 7]:
+        cols = st.columns(6)
+        for col, m in zip(cols, range(row_start, row_start + 6)):
+            is_on = m in st.session_state.hist_sel_months
+            if col.button(f"{m}", key=f"hist_m_{m}",
+                           type="primary" if is_on else "secondary",
+                           use_container_width=True):
+                (st.session_state.hist_sel_months.discard(m) if is_on
+                 else st.session_state.hist_sel_months.add(m))
+                st.rerun()
+
+    # 빠른 선택
     qc1, qc2, qc3, qc4 = st.columns(4)
-    if qc1.button("전체 월", use_container_width=True, key="hist_all_m"):
+    if qc1.button("전체", use_container_width=True, key="hist_all_m"):
         st.session_state.hist_sel_months = set(range(1, 13)); st.rerun()
     if qc2.button("1Q", use_container_width=True, key="hist_q1"):
         st.session_state.hist_sel_months = {1, 2, 3}; st.rerun()
-    if qc3.button("최근 3개월", use_container_width=True, key="hist_recent"):
+    if qc3.button("최근3", use_container_width=True, key="hist_recent"):
         from datetime import date
         m = date.today().month
         st.session_state.hist_sel_months = {((m - i - 1) % 12) + 1 for i in range(3)}
