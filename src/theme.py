@@ -1153,6 +1153,115 @@ button[kind="header"] {
 [data-baseweb="select"] [class*="Selection"] * {
     color: #F2F4F6 !important;
 }
+
+/* ===================== 모바일 반응형 (≤768px) ===================== */
+@media (max-width: 768px) {
+  /* Streamlit columns 모바일에서도 가로 유지 (자동 stack 방지) */
+  [data-testid="stHorizontalBlock"] {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 0.25rem !important;
+  }
+  [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+    min-width: 0 !important;
+    flex: 1 1 calc(50% - 0.25rem) !important;
+  }
+  /* 버튼 폰트 축소 */
+  [data-testid="stHorizontalBlock"] button {
+    font-size: 0.75rem !important;
+    padding: 0.4rem 0.5rem !important;
+  }
+  /* 셀렉트박스/입력 폰트 축소 */
+  [data-baseweb="select"] *,
+  [data-baseweb="input"] input,
+  .stNumberInput input { font-size: 0.85rem !important; }
+  label { font-size: 0.8rem !important; }
+
+  /* hero/제목 폰트 축소 */
+  .hero h1 { font-size: 1.5rem !important; line-height: 1.3 !important; }
+  .hero .eyebrow { font-size: 0.7rem !important; }
+  .hero .lead { font-size: 0.85rem !important; }
+
+  /* section-title */
+  .section-title h2 { font-size: 1rem !important; }
+
+  /* stock-card: 패딩 줄이고 폰트 작게 */
+  .stock-card {
+    padding: 0.75rem 0.875rem !important;
+    gap: 0.5rem !important;
+    align-items: center !important;
+  }
+  .stock-card .rank {
+    flex: 0 0 32px !important;
+    font-size: 1rem !important;
+    line-height: 1.4 !important;
+  }
+  .stock-card .info .name {
+    font-size: 0.95rem !important;
+    margin-bottom: 0.15rem !important;
+    word-break: keep-all !important;
+    overflow-wrap: anywhere !important;
+  }
+  .stock-card .info .meta {
+    font-size: 0.7rem !important;
+    word-break: keep-all !important;
+    line-height: 1.4 !important;
+  }
+  .stock-card .badges { gap: 3px !important; margin-top: 4px !important; }
+  .stock-card .badges .tag,
+  .stock-card .badges .score-pill {
+    font-size: 0.65rem !important;
+    padding: 1px 6px !important;
+  }
+  .stock-card .themes { font-size: 0.65rem !important; margin-top: 4px !important; }
+  .stock-card .themes .chip {
+    font-size: 0.65rem !important;
+    padding: 1px 5px !important;
+  }
+  .stock-card .news { display: none !important; }   /* 모바일은 뉴스 숨김 */
+  .stock-card .stats {
+    min-width: 80px !important;
+    flex-shrink: 0 !important;
+  }
+  .stock-card .stats .price { font-size: 0.95rem !important; }
+  .stock-card .stats .change { font-size: 0.8rem !important; }
+
+  /* bento KPI */
+  .bento { padding: 0.625rem 0.75rem !important; }
+  .bento .label { font-size: 0.65rem !important; }
+  .bento .value { font-size: 1rem !important; }
+  .bento .sub { font-size: 0.65rem !important; }
+
+  /* theme-card */
+  .theme-card {
+    padding: 0.75rem 0.875rem !important;
+    gap: 0.5rem !important;
+  }
+
+  /* 데이터프레임/표 가로 스크롤 */
+  [data-testid="stDataFrame"], .stDataFrame {
+    overflow-x: auto !important;
+    font-size: 0.75rem !important;
+  }
+
+  /* 사이드바 자동 축소 — 모바일에서 페이지 더 넓게 */
+  section[data-testid="stSidebar"] {
+    width: 220px !important;
+  }
+}
+
+/* ===================== 좁은 모바일 (≤480px) ===================== */
+@media (max-width: 480px) {
+  .stock-card { padding: 0.625rem 0.75rem !important; }
+  .stock-card .rank { display: none !important; }   /* 더 좁으면 rank 숨김 */
+  .stock-card .info .meta {
+    font-size: 0.65rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .stock-card .stats .price { font-size: 0.85rem !important; }
+}
 </style>
 """
 
