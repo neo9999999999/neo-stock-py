@@ -781,20 +781,177 @@ section[data-testid="stSidebar"] *{color:var(--fg-2);}
 """
 
 
-# DARK_OVERRIDE은 더 이상 필요 없음 — data-theme로 자동 전환
-DARK_OVERRIDE = ""
+# 다크 모드 — :root에 직접 오버라이드 (Streamlit이 script 태그 sanitize하므로 CSS-only)
+DARK_OVERRIDE = """
+<style>
+/* 다크 모드 토큰 — :root 직접 덮어쓰기 (data-theme 어트리뷰트 우회) */
+:root, html, body, .stApp{
+  --bg-page:#0B0E1A !important;
+  --bg-surface:#151A2B !important;
+  --bg-elevated:#1C2238 !important;
+  --bg-muted:#1A1F32 !important;
+  --bg-subtle:#131727 !important;
+  --bg-hover:rgba(255,255,255,.05) !important;
+  --bg-active:rgba(255,255,255,.08) !important;
+  --bg-selected:rgba(79,93,232,.18) !important;
+
+  --fg-1:#ECEEF5 !important;
+  --fg-2:#C3C8D6 !important;
+  --fg-3:#8C93A6 !important;
+  --fg-muted:#5F667A !important;
+  --fg-disabled:#3D4358 !important;
+  --fg-link:#8E9FFF !important;
+  --fg-brand:#8E9FFF !important;
+
+  --border-subtle:rgba(255,255,255,.05) !important;
+  --border-default:rgba(255,255,255,.09) !important;
+  --border-strong:rgba(255,255,255,.15) !important;
+  --border-focus:#6B7CF6 !important;
+
+  --accent-bg:#4F5DE8 !important;
+  --accent-bg-hover:#6B7CF6 !important;
+  --accent-subtle:rgba(79,93,232,.16) !important;
+  --accent-strong:#8E9FFF !important;
+
+  --success-subtle:rgba(31,171,107,.16) !important;
+  --success-text:#5CD9A0 !important;
+  --warning-subtle:rgba(245,166,35,.16) !important;
+  --warning-text:#FFC15C !important;
+  --danger-subtle:rgba(229,72,77,.16) !important;
+  --danger-text:#FF8B8E !important;
+  --info-subtle:rgba(46,150,231,.16) !important;
+  --info-text:#6ABEF2 !important;
+
+  --price-up:#FF8B8E !important;
+  --price-down:#8E9FFF !important;
+
+  --shadow-xs:0 1px 2px rgba(0,0,0,.4) !important;
+  --shadow-1:0 1px 2px rgba(0,0,0,.5),0 1px 1px rgba(0,0,0,.3) !important;
+  --shadow-2:0 4px 12px rgba(0,0,0,.5),0 1px 2px rgba(0,0,0,.3) !important;
+  --shadow-3:0 12px 32px rgba(0,0,0,.55),0 2px 4px rgba(0,0,0,.3) !important;
+  --shadow-focus:0 0 0 3px rgba(142,159,255,.32) !important;
+}
+
+/* Streamlit 기본 페이지 배경 강제 */
+.stApp, [data-testid="stMain"], section.main, .block-container{
+  background:#0B0E1A !important;
+  color:#C3C8D6 !important;
+}
+section[data-testid="stSidebar"]{
+  background:#151A2B !important;
+  border-right:1px solid rgba(255,255,255,.09) !important;
+}
+section[data-testid="stSidebar"] *{color:#C3C8D6 !important;}
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] strong,
+section[data-testid="stSidebar"] b{color:#ECEEF5 !important;}
+
+/* 입력 폼 다크 강제 */
+.stTextInput input, .stNumberInput input,
+[data-baseweb="input"] input, [data-baseweb="textarea"] textarea{
+  background:#1C2238 !important;
+  color:#ECEEF5 !important;
+  border-color:rgba(255,255,255,.09) !important;
+}
+[data-baseweb="select"] > div{
+  background:#1C2238 !important;
+  color:#ECEEF5 !important;
+  border-color:rgba(255,255,255,.09) !important;
+}
+[data-baseweb="select"] [class*="ValueContainer"] *,
+[data-baseweb="select"] [class*="Selection"] *{
+  color:#ECEEF5 !important;
+}
+/* Popover (셀렉트 옵션 리스트) */
+[data-baseweb="popover"] [role="listbox"]{
+  background:#1C2238 !important;
+}
+[data-baseweb="popover"] [role="option"]{
+  color:#ECEEF5 !important;
+}
+[data-baseweb="popover"] [role="option"]:hover{
+  background:rgba(255,255,255,.05) !important;
+}
+
+/* 버튼 다크 */
+.stButton > button, .stDownloadButton > button{
+  background:#1C2238 !important;
+  color:#ECEEF5 !important;
+  border-color:rgba(255,255,255,.09) !important;
+}
+.stButton > button:hover{
+  background:rgba(255,255,255,.05) !important;
+  border-color:rgba(255,255,255,.15) !important;
+}
+.stButton > button[kind="primary"]{
+  background:#4F5DE8 !important;
+  color:#FFFFFF !important;
+  border-color:#4F5DE8 !important;
+}
+
+/* Slider track / handle */
+.stSlider [data-baseweb="slider"] [role="slider"]{background:#8E9FFF !important;}
+
+/* Tabs */
+.stTabs [data-baseweb="tab"]{color:#8C93A6 !important;}
+.stTabs [aria-selected="true"]{color:#8E9FFF !important;}
+
+/* DataFrame */
+[data-testid="stDataFrame"]{
+  background:#151A2B !important;
+  border-color:rgba(255,255,255,.09) !important;
+}
+[data-testid="stDataFrame"] *{color:#C3C8D6 !important;}
+
+/* Expander */
+[data-testid="stExpander"]{
+  background:#151A2B !important;
+  border-color:rgba(255,255,255,.09) !important;
+}
+
+/* Alert (info/success/warning/error) 배경 살짝 */
+[data-testid="stAlert"]{
+  background:#1C2238 !important;
+  color:#ECEEF5 !important;
+  border-color:rgba(255,255,255,.09) !important;
+}
+
+/* 커스텀 컴포넌트 카드 강제 */
+.stock-card, .theme-card, .bento, [data-testid="stExpander"]{
+  background:#151A2B !important;
+  border-color:rgba(255,255,255,.09) !important;
+}
+.stock-card:hover, .theme-card:hover{
+  border-color:rgba(255,255,255,.15) !important;
+}
+.stock-card .info .name, .bento .value{color:#ECEEF5 !important;}
+.stock-card .info .meta, .bento .label, .bento .sub{color:#8C93A6 !important;}
+
+/* Hero/Section Title */
+.hero h1, .section-title h2{color:#ECEEF5 !important;}
+.hero .eyebrow{color:#8E9FFF !important;}
+.hero .lead{color:#8C93A6 !important;}
+
+/* Empty state */
+.empty-state{
+  background:#151A2B !important;
+  border-color:rgba(255,255,255,.09) !important;
+}
+.empty-state h3{color:#ECEEF5 !important;}
+.empty-state p{color:#8C93A6 !important;}
+</style>
+"""
 
 
 def inject_css(theme: str = "light"):
-    """Streamlit 페이지 상단에서 호출. CSS 주입 + data-theme 속성 설정."""
+    """Streamlit 페이지 상단에서 호출. CSS 주입."""
     global PALETTE
     PALETTE = PALETTE_DARK if theme == "dark" else PALETTE_LIGHT
     st.markdown(CSS, unsafe_allow_html=True)
-    # data-theme 속성을 html에 설정 (디자인 시스템의 [data-theme="dark"] 토큰 활성화)
-    st.markdown(
-        f'<script>document.documentElement.setAttribute("data-theme", "{theme}");</script>',
-        unsafe_allow_html=True,
-    )
+    if theme == "dark":
+        st.markdown(DARK_OVERRIDE, unsafe_allow_html=True)
 
 
 def current_palette():
