@@ -600,7 +600,7 @@ def page_today():
 
     # 다운로드
     csv = df_t.to_csv(index=True).encode("utf-8-sig")
-    st.download_button("📥 CSV 다운로드", csv, f"closing_bet_{date_str}.csv",
+    st.download_button("📥 CSV 다운로드", csv, f"closing_bet_{target_date_str}.csv",
                        "text/csv", use_container_width=True)
     return
 
@@ -627,7 +627,7 @@ def page_today():
 
     # 다운로드
     csv = df.to_csv(index=True).encode("utf-8-sig")
-    st.download_button("📥 CSV 다운로드", csv, f"closing_bet_{date_str}.csv",
+    st.download_button("📥 CSV 다운로드", csv, f"closing_bet_{target_date_str}.csv",
                        "text/csv", use_container_width=True)
 
 
