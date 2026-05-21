@@ -2938,28 +2938,81 @@ def page_history():
             total_row[f"{lbl} 손익"] = "-"
     monthly_rows.append(total_row)
 
-    monthly_df = pd.DataFrame(monthly_rows)
+    # HTML 테이블 직접 — 가로 스크롤 없이 한 화면에 fit
+    def _fmt_pct(v):
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return '<span style="color:var(--fg-muted);">—</span>'
+        cls = "up" if v > 0 else "down" if v < 0 else ""
+        sign = "+" if v >= 0 else ""
+        color = ("var(--price-up)" if cls == "up"
+                 else "var(--price-down)" if cls == "down"
+                 else "var(--fg-3)")
+        return f'<span style="color:{color};font-weight:600;">{sign}{v*100:.1f}%</span>'
 
-    fmt_dict_m = {}
-    pct_cols_m = []
-    won_cols_m = []
-    for col, lbl in period_cols:
-        fmt_dict_m[f"{lbl} 평균"] = "{:+.2%}"
-        pct_cols_m.append(f"{lbl} 평균")
-        won_cols_m.append(f"{lbl} 손익")
+    def _fmt_won(v):
+        if not isinstance(v, str) or v == "-":
+            return '<span style="color:var(--fg-muted);">—</span>'
+        if v.startswith("-"):
+            return f'<span style="color:var(--price-down);font-weight:600;">{v}</span>'
+        return f'<span style="color:var(--price-up);font-weight:600;">{v}</span>'
 
-    monthly_styler = monthly_df.style.format(fmt_dict_m, na_rep="-")
-    for c in pct_cols_m:
-        monthly_styler = monthly_styler.applymap(_color_pct, subset=[c])
-    for c in won_cols_m:
-        monthly_styler = monthly_styler.applymap(_color_won_str, subset=[c])
+    # 헤더 + 행 HTML
+    headers = ["월", "n"]
+    for _, lbl in period_cols:
+        headers.append(f"{lbl} 평균")
+        headers.append(f"{lbl} 손익")
 
-    def _highlight_total(row):
-        if str(row.iloc[0]).startswith("🏆"):
-            return ["background-color: rgba(49,130,246,0.1); font-weight: 800;" for _ in row]
-        return ["" for _ in row]
-    monthly_styler = monthly_styler.apply(_highlight_total, axis=1)
-    st.dataframe(monthly_styler, use_container_width=True, hide_index=True)
+    rows_html = []
+    for row in monthly_rows:
+        is_total = str(row["월"]).startswith("🏆")
+        cells = []
+        cells.append(f'<td class="month">{row["월"]}</td>')
+        cells.append(f'<td class="num n">{row["시그널수"]}</td>')
+        for _, lbl in period_cols:
+            cells.append(f'<td class="num">{_fmt_pct(row.get(f"{lbl} 평균"))}</td>')
+            cells.append(f'<td class="num">{_fmt_won(row.get(f"{lbl} 손익"))}</td>')
+        row_cls = ' class="total-row"' if is_total else ""
+        rows_html.append(f"<tr{row_cls}>{''.join(cells)}</tr>")
+
+    table_html = (
+        '<div class="monthly-pnl-wrap">'
+        '<table class="monthly-pnl"><thead><tr>'
+        + "".join(f'<th>{h}</th>' for h in headers) +
+        '</tr></thead><tbody>'
+        + "".join(rows_html) +
+        '</tbody></table></div>'
+        '<style>'
+        '.monthly-pnl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;'
+        'background:var(--bg-surface);border:1px solid var(--border-default);'
+        'border-radius:var(--radius-lg);}'
+        '.monthly-pnl{width:100%;border-collapse:collapse;'
+        'font-family:var(--font-mono);font-size:var(--fs-xs);'
+        'font-variant-numeric:tabular-nums;table-layout:auto;}'
+        '.monthly-pnl th{background:var(--bg-muted);color:var(--fg-3);'
+        'font-weight:600;text-transform:uppercase;letter-spacing:.04em;'
+        'padding:6px 4px;font-size:9px;text-align:center;'
+        'border-bottom:1px solid var(--border-default);}'
+        '.monthly-pnl td{padding:6px 4px;border-bottom:1px solid var(--border-subtle);'
+        'color:var(--fg-2);font-size:11px;}'
+        '.monthly-pnl td.month{font-weight:600;color:var(--fg-1);'
+        'font-family:var(--font-sans);white-space:nowrap;}'
+        '.monthly-pnl td.num{text-align:right;white-space:nowrap;}'
+        '.monthly-pnl td.n{color:var(--fg-3);}'
+        '.monthly-pnl tr.total-row{background:var(--accent-subtle);}'
+        '.monthly-pnl tr.total-row td{font-weight:700;'
+        'border-top:2px solid var(--accent-bg);}'
+        '.monthly-pnl tr:hover:not(.total-row){background:var(--bg-hover);}'
+        '@media (max-width:768px){'
+        '.monthly-pnl th{font-size:8px !important;padding:4px 2px !important;}'
+        '.monthly-pnl td{font-size:10px !important;padding:4px 2px !important;}'
+        '}'
+        '@media (max-width:480px){'
+        '.monthly-pnl th{font-size:7px !important;}'
+        '.monthly-pnl td{font-size:9px !important;padding:3px 1px !important;}'
+        '}'
+        '</style>'
+    )
+    st.markdown(table_html, unsafe_allow_html=True)
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     section_title(f"📋 {period_label} 일자별 시그널 (일별 상위 {daily_topk}개)",
