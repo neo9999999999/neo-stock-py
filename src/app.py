@@ -348,7 +348,8 @@ def page_today():
         return
 
     # ===== 사전 계산된 parquet 로드 =====
-    sig_df_all = load_precomputed_history(profile_mode, 0.6, market_filter_on)
+    sig_df_all = load_precomputed_history(profile_mode, 0.6, market_filter_on,
+                                            _mtime=_parquet_mtime(profile_mode))
     if sig_df_all.empty:
         empty_state("🔭", "시그널 데이터 없음",
                      "사전 계산 parquet이 없습니다. precompute_history.py 실행 필요.")
@@ -2444,11 +2445,20 @@ def page_themes():
 # ====================================================================
 # 페이지: 추천 히스토리 (일자별 v3 시그널)
 # ====================================================================
+def _parquet_mtime(profile_mode: str) -> float:
+    """parquet 파일 mtime — cache key로 사용해 파일 갱신 시 자동 무효화."""
+    f = ROOT / "results" / f"history_signals_{profile_mode}.parquet"
+    return f.stat().st_mtime if f.exists() else 0.0
+
+
 @st.cache_data(show_spinner="📅 시그널 로딩…")
 def load_precomputed_history(profile_mode: str,
                               sim_threshold: float,
-                              market_filter: bool) -> pd.DataFrame:
-    """오프라인 사전 계산 parquet를 로드 (즉시). 필터만 메모리에서."""
+                              market_filter: bool,
+                              _mtime: float = 0.0) -> pd.DataFrame:
+    """오프라인 사전 계산 parquet를 로드 (즉시). 필터만 메모리에서.
+    _mtime: parquet 파일 mtime — 파일 갱신 시 캐시 무효화 트리거.
+    """
     f = ROOT / "results" / f"history_signals_{profile_mode}.parquet"
     if not f.exists():
         return pd.DataFrame()
@@ -2778,7 +2788,8 @@ def page_history():
         return
 
     # ===== 5) 사전 계산된 parquet 로드 (즉시) =====
-    df_all = load_precomputed_history(profile_mode, sim_threshold, market_filter_on)
+    df_all = load_precomputed_history(profile_mode, sim_threshold, market_filter_on,
+                                        _mtime=_parquet_mtime(profile_mode))
     if df_all.empty:
         empty_state("🔭", "시그널 없음", "사전 계산 parquet 없거나 필터가 너무 엄격함.")
         return
