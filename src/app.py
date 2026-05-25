@@ -2460,7 +2460,7 @@ def precompute_v3_signals(universe_tuple: tuple[str, ...],
                             sim_threshold: float = 0.6,
                             market_filter: bool = True,
                             profile_mode: str = "combined") -> pd.DataFrame:
-    """전 기간(2021~2026) v3 시그널 + 익일/10/30/60/90/120일 미래 수익률.
+    """전 기간(2021~2026) v3 시그널 + 익일/10/30/60/90/120/180일 미래 수익률.
 
     profile_mode:
         - 'user39': 사용자 큐레이션 39개만 (기존, 2025~ 편향)
@@ -2546,7 +2546,8 @@ def precompute_v3_signals(universe_tuple: tuple[str, ...],
                 pos = df.index.get_loc(date_ts)
                 for n_label, n_days in [("ret_d1", 1), ("ret_d10", 10),
                                          ("ret_d30", 30), ("ret_d60", 60),
-                                         ("ret_d90", 90), ("ret_d120", 120)]:
+                                         ("ret_d90", 90), ("ret_d120", 120),
+                                         ("ret_d180", 180)]:
                     if pos + n_days < len(df):
                         fut_close = float(df.iloc[pos + n_days]["close"])
                         future_returns[n_label] = (fut_close - entry_price) / entry_price
@@ -2888,7 +2889,8 @@ def page_history():
 
     for src, dst in [("ret_d1", "익일"), ("ret_d10", "10일"),
                       ("ret_d30", "30일"), ("ret_d60", "60일"),
-                      ("ret_d90", "90일"), ("ret_d120", "120일")]:
+                      ("ret_d90", "90일"), ("ret_d120", "120일"),
+                      ("ret_d180", "180일")]:
         month_df[dst] = month_df[src].apply(_combine)
 
     # 전체 리스트
@@ -2925,7 +2927,8 @@ def page_history():
 
     period_cols = [("ret_d1", "익일"), ("ret_d10", "10일"),
                     ("ret_d30", "30일"), ("ret_d60", "60일"),
-                    ("ret_d90", "90일"), ("ret_d120", "120일")]
+                    ("ret_d90", "90일"), ("ret_d120", "120일"),
+                    ("ret_d180", "180일")]
 
     month_df["yyyymm"] = (month_df["year"].astype(str) + "-"
                             + month_df["month"].astype(str).str.zfill(2))
@@ -3324,8 +3327,10 @@ def page_monthly_oos():
         sub["name"] = sub["code"].map(lambda c: code_to_name.get(c, c))
 
         # 가장 좋은 보유기간 추가
-        sub["best_hold"] = sub[["ret_30", "ret_60", "ret_90", "ret_120"]].idxmax(axis=1)
-        sub["best_ret"] = sub[["ret_30", "ret_60", "ret_90", "ret_120"]].max(axis=1)
+        hold_cols_avail = [c for c in ["ret_30", "ret_60", "ret_90", "ret_120", "ret_180"]
+                            if c in sub.columns]
+        sub["best_hold"] = sub[hold_cols_avail].idxmax(axis=1)
+        sub["best_ret"] = sub[hold_cols_avail].max(axis=1)
 
         # 종목별 dedup 옵션
         dedup_mode = st.radio(

@@ -34,7 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 MIN_CASES_FOR_PROFILE = 50
 SIM_THRESHOLD = 0.5             # 보수적으로 0.5 (v3.8 grid 결과)
-HOLDS = [30, 60, 90, 120]
+HOLDS = [30, 60, 90, 120, 180]
 MARKET_CAP_CUTOFF = 5e11
 START_MONTH = "2021-01"
 END_MONTH = "2026-05"

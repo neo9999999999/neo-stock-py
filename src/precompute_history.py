@@ -108,7 +108,7 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
             pos = df.index.get_loc(date_ts)
             for n_label, n_days in [("ret_d1", 1), ("ret_d10", 10),
                                      ("ret_d30", 30), ("ret_d60", 60),
-                                     ("ret_d90", 90), ("ret_d120", 120)]:
+                                     ("ret_d90", 90), ("ret_d120", 120), ("ret_d180", 180)]:
                 if pos + n_days < len(df):
                     fut_close = float(df.iloc[pos + n_days]["close"])
                     future_returns[n_label] = (fut_close - entry_price) / entry_price
@@ -162,7 +162,7 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
         df_out["marcap"] = df_out["marcap"].astype("int64")
     for c in ("similarity", "ret_1d", "ret_20d", "value_eok", "vol_ratio",
                "rsi", "close_to_high", "bb_width", "env_ma20", "env_ma60",
-               "ret_d1", "ret_d10", "ret_d30", "ret_d60", "ret_d90", "ret_d120"):
+               "ret_d1", "ret_d10", "ret_d30", "ret_d60", "ret_d90", "ret_d120", "ret_d180"):
         if c in df_out.columns:
             df_out[c] = df_out[c].astype("float32")
     if "kospi_above" in df_out.columns:
