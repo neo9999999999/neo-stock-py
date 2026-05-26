@@ -831,47 +831,100 @@ def page_backtest():
     else:
         v3_sim_threshold = 0.6
 
-    # ----- 파라미터 입력 (모든 값 자유 커스텀) -----
-    section_title("파라미터 · 자유 커스텀")
-    st.caption("디폴트값: 코스닥 포함 완화 셋업. 모든 입력 하한 제약 없음. 손절 0% = 손절 없음.")
-    with st.container():
-        c1, c2, c3, c4, c5 = st.columns(5)
-        year = c1.selectbox("연도", ["2026", "2025", "2024", "2023", "2022", "2021", "전체"], index=0)
-        min_value_eok = c2.number_input("거래대금 (억원 ≥)",
-                                          value=50, step=10, format="%d",
-                                          help="0 이상 어떤 값도 가능. 코스닥 포함하려면 100억 이하 권장.")
-        volume_mult = c3.number_input("거래량 배수 (60일 평균 ×)",
-                                       value=3.0, step=0.5, format="%.2f",
-                                       help="1.0 미만도 가능.")
-        high_window = c4.number_input("신고가 기간 (일)",
-                                       value=60, step=5, min_value=2, format="%d")
-        require_score = c5.selectbox("최소 충족 조건 수",
-                                      [1, 2, 3, 4, 5], index=3,
-                                      help="1=하나라도, 5=전부 충족")
+    # ----- 기간 선택 (다중 선택 칩 버튼) -----
+    section_title("📅 검증 기간")
+    if "bt_sel_years" not in st.session_state:
+        st.session_state.bt_sel_years = {2026}
+    if "bt_sel_months" not in st.session_state:
+        st.session_state.bt_sel_months = set(range(1, 13))    # 디폴트: 전월
 
-        c1, c2, c3, c4, c5 = st.columns(5)
-        close_to_high = c1.number_input("종가/고가 비율 ≥",
-                                          value=0.70, step=0.01, format="%.3f",
-                                          help="낮을수록 조건 완화.")
-        ret_min = c2.number_input("최소 등락률 (%)",
-                                    value=7.0, step=0.5, format="%.2f")
-        ret_max = c3.number_input("최대 등락률 (%)",
-                                    value=28.0, step=1.0, format="%.2f")
-        top_k = c4.number_input("일별 매수 종목 수",
-                                 value=5, step=1, min_value=1, format="%d")
-        stop_pct = c5.number_input("손절 (%, 0=없음)",
-                                     value=0.0, step=0.5, format="%.2f",
-                                     help="0 또는 양수는 손절 없음으로 처리.")
-        stop_loss = (stop_pct / 100) if stop_pct < 0 else None
+    st.markdown("**연도** (다중 선택)")
+    yrs = [2020, 2021, 2022, 2023, 2024, 2025, 2026]
+    yc = st.columns(len(yrs))
+    for col, y in zip(yc, yrs):
+        is_on = y in st.session_state.bt_sel_years
+        if col.button(str(y), key=f"bt_y_{y}",
+                       type="primary" if is_on else "secondary",
+                       use_container_width=True):
+            (st.session_state.bt_sel_years.discard(y) if is_on
+             else st.session_state.bt_sel_years.add(y))
+            st.rerun()
 
-        c1, c2, c3 = st.columns([1, 1, 2])
-        cost = c1.number_input("거래 비용 (%, 왕복)",
-                                 value=0.3, step=0.1, format="%.2f")
-        capital_man = c2.number_input("종목당 투입금 (만원)",
-                                       value=100, step=10, min_value=10, max_value=100000,
-                                       format="%d")
-        run = c3.button("⚡ 백테스트 실행", type="primary", use_container_width=True)
+    st.markdown("**월** (다중 선택)")
+    for row_s in [1, 7]:
+        mc = st.columns(6)
+        for col, m in zip(mc, range(row_s, row_s + 6)):
+            is_on = m in st.session_state.bt_sel_months
+            if col.button(f"{m}", key=f"bt_m_{m}",
+                           type="primary" if is_on else "secondary",
+                           use_container_width=True):
+                (st.session_state.bt_sel_months.discard(m) if is_on
+                 else st.session_state.bt_sel_months.add(m))
+                st.rerun()
+    qc1, qc2, qc3 = st.columns(3)
+    if qc1.button("전체 월", use_container_width=True, key="bt_all_m"):
+        st.session_state.bt_sel_months = set(range(1, 13)); st.rerun()
+    if qc2.button("1Q", use_container_width=True, key="bt_q1"):
+        st.session_state.bt_sel_months = {1, 2, 3}; st.rerun()
+    if qc3.button("월 해제", use_container_width=True, key="bt_clr"):
+        st.session_state.bt_sel_months = set(); st.rerun()
+
+    sel_yrs = sorted(st.session_state.bt_sel_years)
+    sel_mos = sorted(st.session_state.bt_sel_months)
+
+    # ----- 파라미터 입력 (그리드 정리) -----
+    section_title("⚙️ 파라미터 · 자유 커스텀")
+    st.caption("디폴트값: 코스닥 포함 완화 셋업. 손절 0% = 손절 없음.")
+
+    # 1행: 거래대금 / 거래량 배수 / 신고가 / 최소 충족 / 종가-고가 비율
+    c1, c2, c3, c4, c5 = st.columns(5)
+    min_value_eok = c1.number_input("거래대금 (억원 ≥)",
+                                      value=50, step=10, format="%d", key="bt_minval")
+    volume_mult = c2.number_input("거래량 배수 (×)",
+                                   value=3.0, step=0.5, format="%.2f", key="bt_volmult")
+    high_window = c3.number_input("신고가 기간 (일)",
+                                   value=60, step=5, min_value=2, format="%d", key="bt_hw")
+    require_score = c4.selectbox("최소 충족 조건",
+                                  [1, 2, 3, 4, 5], index=3, key="bt_score")
+    close_to_high = c5.number_input("종가/고가 ≥",
+                                      value=0.70, step=0.01, format="%.3f", key="bt_clh")
+
+    # 2행: 최소/최대 등락률 / 매수 종목수 / 손절 / 거래비용
+    c1, c2, c3, c4, c5 = st.columns(5)
+    ret_min = c1.number_input("최소 등락률 (%)",
+                                value=7.0, step=0.5, format="%.2f", key="bt_rmin")
+    ret_max = c2.number_input("최대 등락률 (%)",
+                                value=28.0, step=1.0, format="%.2f", key="bt_rmax")
+    top_k = c3.number_input("일별 매수 종목",
+                             value=5, step=1, min_value=1, format="%d", key="bt_topk")
+    stop_pct = c4.number_input("손절 (%, 0=없음)",
+                                 value=0.0, step=0.5, format="%.2f", key="bt_stop")
+    cost = c5.number_input("거래비용 (%, 왕복)",
+                             value=0.3, step=0.1, format="%.2f", key="bt_cost")
+    stop_loss = (stop_pct / 100) if stop_pct < 0 else None
+
+    # 3행: 종목당 투입금 / 실행 버튼
+    c1, c2 = st.columns([1, 4])
+    capital_man = c1.number_input("종목당 투입금 (만원)",
+                                   value=100, step=10, min_value=10, max_value=100000,
+                                   format="%d", key="bt_cap")
+    run = c2.button("⚡ 백테스트 실행", type="primary", use_container_width=True, key="bt_run")
     capital_won = capital_man * 10000
+
+    # 연도 호환 — 다중이지만 backtest는 단일 연도가 편함. 가장 최신 선택 사용 또는 전체.
+    if not sel_yrs:
+        st.warning("⚠️ 연도 1개 이상 선택")
+        year = "전체"
+    elif len(sel_yrs) == 1:
+        year = str(sel_yrs[0])
+    else:
+        # 다중 선택 시 가장 최신 연도로 (또는 전체)
+        if set(sel_yrs) == set(yrs):
+            year = "전체"
+        else:
+            year = str(max(sel_yrs))
+            st.caption(f"💡 다중 연도 선택됨. 백테스트는 가장 최신 연도({year})로 실행. "
+                        f"전체 비교는 모든 연도 선택 또는 '워크포워드' 페이지.")
 
     # ----- 청산 전략 (항상 4가지 보유 기간 비교) -----
     section_title("청산 전략 · 보유 기간 비교 (1/30/60/90일)")
