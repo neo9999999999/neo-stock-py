@@ -927,14 +927,14 @@ def page_backtest():
                         f"전체 비교는 모든 연도 선택 또는 '워크포워드' 페이지.")
 
     # ----- 청산 전략 (항상 4가지 보유 기간 비교) -----
-    section_title("청산 전략 · 보유 기간 비교 (1/30/60/90일)")
-    st.caption("4가지 보유 기간 자동 비교. 메인 분석은 선택된 기간 결과. "
+    section_title("청산 전략 · 보유 기간 비교 (익일/10/30/90/180일)")
+    st.caption("5가지 보유 기간 자동 비교. 메인 분석은 선택된 기간 결과. "
                 "TP 활성화 시 도달하면 분할 청산, 미도달 시 만기일 시초가 청산.")
 
     cc1, cc2, cc3 = st.columns([1, 1, 2])
     main_period = cc1.selectbox("메인 분석 기간",
-                                  ["1일 (익일 종가)", "30일", "60일", "90일"],
-                                  index=0, key="main_period")
+                                  ["1일 (익일 종가)", "10일", "30일", "90일", "180일"],
+                                  index=2, key="main_period")
     enable_tp = cc2.toggle("TP1/TP2 분할 청산", value=False,
                             help="활성화 시 보유 기간 중 TP1/TP2 도달하면 분할 청산.")
     cc3.empty()
@@ -947,7 +947,7 @@ def page_backtest():
         tp1_size = tc3.number_input("TP1 청산 비중 (%)", value=50.0, step=5.0, format="%.0f") / 100
         tp2_size = tc4.number_input("TP2 청산 비중 (%)", value=50.0, step=5.0, format="%.0f") / 100
 
-    PERIOD_MAP = {"1일 (익일 종가)": 1, "30일": 30, "60일": 60, "90일": 90}
+    PERIOD_MAP = {"1일 (익일 종가)": 1, "10일": 10, "30일": 30, "90일": 90, "180일": 180}
     main_hold_days = PERIOD_MAP[main_period]
     # v3 권장: 30일 보유. v1/v2 권장: 1일 보유.
     if use_v3 and main_hold_days == 1:
@@ -1042,7 +1042,7 @@ def page_backtest():
         bd = cached_business_days(start, end)
 
         # 항상 4가지 보유 기간 다 실행
-        periods = [1, 30, 60, 90]
+        periods = [1, 10, 30, 90, 180]
         tiered_results = {}
         # 1일 보유는 기존 backtest 함수 (익일 종가 청산)
         # 30/60/90일은 backtest_tiered (TP1/TP2 + 만기 시초가)
