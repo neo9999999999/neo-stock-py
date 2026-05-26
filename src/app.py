@@ -271,8 +271,9 @@ def page_today():
                                      format="%.1f", key="today_ret_min")
     f_ret_max = fc_b.number_input("≤ %", value=29.0, step=1.0,
                                      format="%.1f", key="today_ret_max")
-    f_ret20_min = fc3.number_input("직전 20일 누적 ≥ %", value=10.0, step=1.0,
-                                       format="%.1f", key="today_ret20_min")
+    f_ret20_min = fc3.number_input("직전 20일 누적 ≥ %", value=20.0, step=1.0,
+                                       format="%.1f", key="today_ret20_min",
+                                       help="OOS 분석: ≥20% 시 winner +1.9%p, loser -1.2%p")
 
     # 보조지표 필터 (검증 TOP 2 — bb_width, env_ma60)
     st.markdown("##### 📊 보조지표 필터 (검증 TOP 2)")
@@ -282,18 +283,18 @@ def page_today():
         use_bb = st.checkbox("✅ 볼린저밴드 폭", value=True, key="today_bb_on",
                                 help="BB 폭 = (상단-하단)/중심선. Q5 평균 +18.3% (90일 보유)")
         f_bb_min = st.number_input(
-            "최소 % (변동성)", value=15.0, step=2.0, format="%.1f",
+            "최소 % (변동성)", value=25.0, step=2.0, format="%.1f",
             key="today_bb_min", disabled=not use_bb,
-            help="권장 15% (상위 40%). 높을수록 변동성 큰 종목만.")
+            help="OOS 분석: ≥25% 시 winner +2.3%p (best 차별화).")
         if not use_bb:
             f_bb_min = 0.0
     with bi2:
         use_env = st.checkbox("✅ 60일 이격도", value=True, key="today_env_on",
                                  help="(종가/60일MA-1)×100. Q5 평균 +18.9% (90일 보유)")
         f_env60_min = st.number_input(
-            "최소 % (60일 강세)", value=5.0, step=2.0, format="%.1f",
+            "최소 % (60일 강세)", value=15.0, step=2.0, format="%.1f",
             key="today_env60_min", disabled=not use_env,
-            help="권장 5% (상위 40%). 높을수록 60일선 위 강한 종목만.")
+            help="OOS 분석: ≥15% 시 winner +1.5%p. 60일선 위 강한 종목.")
         if not use_env:
             f_env60_min = 0.0
 
@@ -2739,8 +2740,9 @@ def page_history():
                                   format="%.1f", key="hf_rmin")
     f_ret_max = fb.number_input("≤ %", value=29.0, step=1.0,
                                   format="%.1f", key="hf_rmax")
-    f_ret20_min = f3.number_input("직전 20일 누적 ≥ %", value=10.0, step=1.0,
-                                    format="%.1f", key="hf_r20")
+    f_ret20_min = f3.number_input("직전 20일 누적 ≥ %", value=20.0, step=1.0,
+                                    format="%.1f", key="hf_r20",
+                                    help="OOS 분석: ≥20% 시 winner +1.9%p")
     # 보조지표 필터 (검증 TOP 2)
     st.markdown("##### 📊 보조지표 필터 (검증 TOP 2)")
     st.caption("OOS 검증 90일 보유 Q5-Q1 격차 최대 2개. 체크 ON/OFF + 값 커스텀 가능.")
@@ -2749,18 +2751,18 @@ def page_history():
         use_bb_h = st.checkbox("✅ 볼린저밴드 폭", value=True, key="hf_bb_on",
                                  help="BB 폭 = (상단-하단)/중심선. Q5 평균 +18.3% (90일)")
         f_bb_min = st.number_input(
-            "최소 % (변동성)", value=15.0, step=2.0, format="%.1f",
+            "최소 % (변동성)", value=25.0, step=2.0, format="%.1f",
             key="hf_bb", disabled=not use_bb_h,
-            help="권장 15% (상위 40%). 변동성 큰 종목 우선.")
+            help="OOS 분석: ≥25% 시 winner +2.3%p (best 차별화).")
         if not use_bb_h:
             f_bb_min = 0.0
     with bb2:
         use_env_h = st.checkbox("✅ 60일 이격도", value=True, key="hf_env_on",
                                   help="(종가/60일MA-1)×100. Q5 평균 +18.9% (90일)")
         f_env60_min = st.number_input(
-            "최소 % (60일 강세)", value=5.0, step=2.0, format="%.1f",
+            "최소 % (60일 강세)", value=15.0, step=2.0, format="%.1f",
             key="hf_env60", disabled=not use_env_h,
-            help="권장 5% (상위 40%). 60일 강세 종목 우선.")
+            help="OOS 분석: ≥15% 시 winner +1.5%p. 60일 강세 종목.")
         if not use_env_h:
             f_env60_min = 0.0
     # 고급: RSI

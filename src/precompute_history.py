@@ -49,7 +49,7 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
 
     if profile_name == "oos_yearly":
         profile_by_year = {}
-        for y in range(2021, 2027):
+        for y in range(2020, 2027):
             n = case_count(combined=True, asof_date=f"{y}-01-01")
             if n >= 50:
                 profile_by_year[y] = build_profile(combined=True, asof_date=f"{y}-01-01")
@@ -64,7 +64,7 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
                   flush=True)
 
         try:
-            df = get_ohlcv(code, "20200601", "20260522")
+            df = get_ohlcv(code, "20191001", "20260522")
         except Exception:
             continue
         if df.empty or len(df) < 80:
@@ -72,7 +72,7 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
 
         if profile_name == "oos_yearly":
             triggered_dfs = []
-            for y in range(2021, 2027):
+            for y in range(2020, 2027):
                 prof = profile_by_year.get(y)
                 if prof is None:
                     continue
@@ -86,7 +86,7 @@ def compute_with_profile(profile_name: str, profile_func, market_above):
             triggered = pd.concat(triggered_dfs)
         else:
             sig = add_signals_v3(df, single_profile, p)
-            triggered = sig[sig["signal"] & (sig.index >= "2021-01-01")]
+            triggered = sig[sig["signal"] & (sig.index >= "2020-01-01")]
 
         if triggered.empty:
             continue
