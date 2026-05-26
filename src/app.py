@@ -3092,8 +3092,9 @@ def page_history():
         sign = "+" if ret >= 0 else ""
         return f"{sign}{ret*100:.1f}% ({fmt_won_kr(won)})"
 
-    # 일자별 시그널 표 컬럼: 10/30/90/180만 (사용자 요청 — 60/120 제외)
-    for src, dst in [("ret_d10", "10일"),
+    # 일자별 시그널 표 컬럼: 익일(D+1)/10/30/90/180 (사용자 요청)
+    for src, dst in [("ret_d1", "익일"),
+                      ("ret_d10", "10일"),
                       ("ret_d30", "30일"),
                       ("ret_d90", "90일"),
                       ("ret_d180", "180일")]:
@@ -3131,8 +3132,9 @@ def page_history():
     section_title("💰 월별 손익 + 전체 손익")
     st.caption(f"종목당 매수금 {fmt_won_kr(buy_won)} 기준. 모든 시그널 평균 수익률 × 매수금.")
 
-    # 월별 손익 표 컬럼: 10/30/90/180만 (사용자 요청 — 60/120 제외)
-    period_cols = [("ret_d10", "10일"),
+    # 월별 손익 표 컬럼: 익일(D+1)/10/30/90/180 (사용자 요청)
+    period_cols = [("ret_d1", "익일"),
+                    ("ret_d10", "10일"),
                     ("ret_d30", "30일"),
                     ("ret_d90", "90일"),
                     ("ret_d180", "180일")]
@@ -3249,7 +3251,7 @@ def page_history():
             "순위", "name", "ticker", "시장",
             "similarity", "추천사유", "close",
             "ret_1d", "ret_20d", "value_eok",
-            "익일", "10일", "30일", "60일", "90일",
+            "익일", "10일", "30일", "90일", "180일",
         ]].rename(columns={
             "name": "종목명", "ticker": "코드",
             "similarity": "유사도", "close": "매수가",
@@ -3280,7 +3282,7 @@ def page_history():
         }, na_rep="-")
         for c in ["당일등락", "직전20일(상승추세)"]:
             g_styler = g_styler.applymap(_color_pct, subset=[c])
-        for c in ["익일", "10일", "30일", "60일", "90일"]:
+        for c in ["익일", "10일", "30일", "90일", "180일"]:
             g_styler = g_styler.applymap(_color_combined, subset=[c])
         g_styler = g_styler.applymap(_color_sim, subset=["유사도"])
         g_styler = g_styler.applymap(_color_rank, subset=["순위"])
