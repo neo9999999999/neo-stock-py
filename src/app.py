@@ -1032,9 +1032,19 @@ def page_backtest():
     raw = load_full_panel(tuple(universe), warmup_start, end)
 
     ver_label = "v3" if use_v3 else ("v2" if use_v2 else "v1")
+
+    # 시그널 계산 캐시 — 같은 파라미터로 재계산하지 않음
+    @st.cache_data(show_spinner=False)
+    def _calc_sig_v3(_raw_keys: tuple, sim_th: float, asof: str):
+        prof = build_profile(combined=True, asof_date=asof) if asof else build_profile(combined=True)
+        p_local = ParamsV3(min_similarity=sim_th, top_k_per_day=int(top_k),
+                            stop_loss=stop_loss, cost_per_trade=cost / 100)
+        return {t: add_signals_v3(raw[t], prof, p_local) for t in _raw_keys if t in raw}
+
     with st.spinner(f"시그널 계산 + 백테스트 ({period_label}, {ver_label})…"):
         if use_v3:
-            sig_data = {t: add_signals_v3(df, case_profile, p) for t, df in raw.items()}
+            asof_key = f"{start[:4]}-{start[4:6]}-{start[6:]}" if bt_strict_oos else ""
+            sig_data = _calc_sig_v3(tuple(sorted(raw.keys())), v3_sim_threshold, asof_key)
         elif use_v2:
             sig_data = {t: add_signals_v2(df, p) for t, df in raw.items()}
         else:
