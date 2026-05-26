@@ -959,6 +959,16 @@ def page_backtest():
         st.session_state.bt_first_run = False
         run = True
 
+    # ⚡ 실행 가드 — 버튼 안 눌렀으면 백테스트 안 함
+    # (이전: 연/월/필터 토글마다 자동 재실행되어 버벅거림)
+    if not run:
+        empty_state(
+            "▶️", "백테스트 대기 중",
+            "위에서 연도/월/파라미터 조정 후 [⚡ 백테스트 실행] 버튼을 누르세요. "
+            "위젯 클릭마다 자동 실행 안 함 (수동 트리거).",
+        )
+        return
+
     # ----- 기간 결정 -----
     if year == "전체":
         start, end = "20210101", "20260517"
