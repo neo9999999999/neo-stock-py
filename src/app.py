@@ -3247,54 +3247,100 @@ def page_history():
     st.markdown(table_html, unsafe_allow_html=True)
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    section_title(f"📋 {period_label} 일자별 시그널 (일별 상위 {daily_topk}개)",
+    section_title(f"📋 {period_label} 시그널 (총 {len(month_df)}건, 정렬: {sort_key})",
                    count=len(month_df))
 
-    # 일자별 분기 표시
-    for date, g in month_df.groupby("date"):
-        g_show = g[[
-            "순위", "name", "ticker", "시장",
-            "similarity", "추천사유", "close",
-            "ret_1d", "ret_20d", "value_eok",
-            "익일", "10일", "30일", "90일", "180일",
-        ]].rename(columns={
-            "name": "종목명", "ticker": "코드",
-            "similarity": "유사도", "close": "매수가",
-            "ret_1d": "당일등락", "ret_20d": "직전20일(상승추세)",
-            "value_eok": "거래대금(억)",
-        })
+    # 그룹 뷰 토글
+    view_mode = st.radio(
+        "표시 방식",
+        ["📅 월별 그룹", "📋 단일 표 (정렬 그대로)", "🗓 일자별 그룹"],
+        index=1, horizontal=True, key="hist_view_mode",
+        help="단일 표는 사용자가 선택한 정렬 기준 그대로 표시 (리셋 없음). "
+             "월별/일자별은 그룹 헤더 분기.",
+    )
 
-        date_dt = pd.to_datetime(date)
-        weekday = ["월","화","수","목","금","토","일"][date_dt.weekday()]
-        st.markdown(
-            f'<div style="margin:1rem 0 0.25rem 0;padding:0.5rem 0.875rem;'
-            f'background:rgba(49,130,246,0.08);border-left:3px solid #3182F6;'
-            f'border-radius:6px;font-size:0.9375rem;">'
-            f'<b>📅 {date} ({weekday})</b> · {len(g_show)}종목</div>',
-            unsafe_allow_html=True,
-        )
+    def _color_combined(v):
+        if not isinstance(v, str) or v == "-": return ""
+        if v.startswith("-"): return f"color: {BLUE}; font-weight: 700;"
+        if v.startswith("+"): return f"color: {RED}; font-weight: 700;"
+        return ""
 
-        def _color_combined(v):
-            if not isinstance(v, str) or v == "-": return ""
-            if v.startswith("-"): return f"color: {BLUE}; font-weight: 700;"
-            if v.startswith("+"): return f"color: {RED}; font-weight: 700;"
-            return ""
+    display_cols = [
+        "date", "순위", "name", "ticker", "시장",
+        "similarity", "등급", "close",
+        "ret_1d", "ret_20d", "value_eok",
+        "익일", "10일", "30일", "90일", "180일",
+    ]
+    rename_map = {
+        "date": "시그널일",
+        "name": "종목명", "ticker": "코드",
+        "similarity": "유사도", "close": "매수가",
+        "ret_1d": "당일등락", "ret_20d": "직전20일",
+        "value_eok": "거래대금(억)",
+    }
+    fmt_dict_g = {
+        "매수가": "{:,.0f}", "유사도": "{:.2f}",
+        "당일등락": "{:+.2%}", "직전20일": "{:+.2%}",
+        "거래대금(억)": "{:,.0f}",
+    }
 
-        g_styler = g_show.style.format({
-            "매수가": "{:,.0f}", "유사도": "{:.2f}",
-            "당일등락": "{:+.2%}", "직전20일(상승추세)": "{:+.2%}",
-            "거래대금(억)": "{:,.0f}",
-        }, na_rep="-")
-        for c in ["당일등락", "직전20일(상승추세)"]:
-            g_styler = g_styler.applymap(_color_pct, subset=[c])
+    def _style(df_show):
+        s = df_show.style.format(fmt_dict_g, na_rep="-")
+        for c in ["당일등락", "직전20일"]:
+            if c in df_show.columns:
+                s = s.applymap(_color_pct, subset=[c])
         for c in ["익일", "10일", "30일", "90일", "180일"]:
-            g_styler = g_styler.applymap(_color_combined, subset=[c])
-        g_styler = g_styler.applymap(_color_sim, subset=["유사도"])
-        g_styler = g_styler.applymap(_color_rank, subset=["순위"])
+            if c in df_show.columns:
+                s = s.applymap(_color_combined, subset=[c])
+        if "유사도" in df_show.columns:
+            s = s.applymap(_color_sim, subset=["유사도"])
+        if "순위" in df_show.columns:
+            s = s.applymap(_color_rank, subset=["순위"])
+        return s
 
-        h = 40 + 38 * len(g_show)
-        st.dataframe(g_styler, use_container_width=True,
+    if view_mode.startswith("📋"):
+        # 단일 평면 표 — 사용자 정렬 그대로
+        show = month_df[display_cols].rename(columns=rename_map)
+        h = min(40 + 38 * len(show), 800)
+        st.dataframe(_style(show), use_container_width=True,
                       height=h, hide_index=True)
+    elif view_mode.startswith("📅"):
+        # 월별 그룹 — 그룹 안에서는 사용자 정렬 유지
+        month_df["yyyymm_disp"] = (month_df["year"].astype(str) + "-"
+                                       + month_df["month"].astype(str).str.zfill(2))
+        # 그룹 순서: 그룹 안 첫 행의 정렬 기준 따름
+        group_order = month_df["yyyymm_disp"].drop_duplicates().tolist()
+        for ym in group_order:
+            g = month_df[month_df["yyyymm_disp"] == ym]
+            st.markdown(
+                f'<div style="margin:1rem 0 0.25rem 0;padding:0.5rem 0.875rem;'
+                f'background:rgba(49,130,246,0.08);border-left:3px solid #3182F6;'
+                f'border-radius:6px;font-size:0.9375rem;">'
+                f'<b>📅 {ym}</b> · {len(g)}종목</div>',
+                unsafe_allow_html=True,
+            )
+            g_show = g[display_cols].rename(columns=rename_map)
+            h = 40 + 38 * len(g_show)
+            st.dataframe(_style(g_show), use_container_width=True,
+                          height=min(h, 600), hide_index=True)
+    else:
+        # 일자별 그룹 — 정렬은 일자 안에서 유지
+        date_order = month_df["date"].drop_duplicates().tolist()
+        for date in date_order:
+            g = month_df[month_df["date"] == date]
+            date_dt = pd.to_datetime(date)
+            weekday = ["월","화","수","목","금","토","일"][date_dt.weekday()]
+            st.markdown(
+                f'<div style="margin:1rem 0 0.25rem 0;padding:0.5rem 0.875rem;'
+                f'background:rgba(49,130,246,0.08);border-left:3px solid #3182F6;'
+                f'border-radius:6px;font-size:0.9375rem;">'
+                f'<b>📅 {date} ({weekday})</b> · {len(g)}종목</div>',
+                unsafe_allow_html=True,
+            )
+            g_show = g[display_cols].rename(columns=rename_map)
+            h = 40 + 38 * len(g_show)
+            st.dataframe(_style(g_show), use_container_width=True,
+                          height=h, hide_index=True)
 
     show_df = month_df  # 다운로드용
 
