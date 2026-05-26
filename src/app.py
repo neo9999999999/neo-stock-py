@@ -2719,17 +2719,54 @@ def page_history():
     if qc4.button("해제", use_container_width=True, key="hist_clr_m"):
         st.session_state.hist_sel_months = set(); st.rerun()
 
-    # ===== 4) 추천 설정 (종목 수 + 매수금) =====
+    # ===== 4) 추천 설정 (일별 종목 수 + 매수금 칩 + 쿨다운 + 등급) =====
     st.markdown("##### ⚙️ 추천 설정")
-    tc1, tc2 = st.columns(2)
-    daily_topk = tc1.slider("일별 추천 종목 수", 1, 10, 3,
+    daily_topk = st.slider("일별 추천 종목 수", 1, 10, 3,
                               key="hist_daily_topk",
                               help="각 영업일 유사도 상위 N개. 1=대장주만, 3=1·2·3순위")
-    buy_man = tc2.number_input("종목당 매수금 (만원)",
-                                 value=100, step=10, min_value=10, max_value=100000,
-                                 format="%d", key="hist_buy_amt",
-                                 help="10만원 ~ 10억원. 손익금 계산용")
+
+    # 매수 금액 — 칩 버튼 + 직접 입력
+    st.markdown("**종목당 매수 금액** (만원)")
+    if "hist_buy_man" not in st.session_state:
+        st.session_state.hist_buy_man = 10
+    buy_chip_cols = st.columns([1, 1, 1, 1, 1, 2])
+    chip_values = [10, 50, 100, 300, 500]
+    for col, val in zip(buy_chip_cols[:5], chip_values):
+        is_on = st.session_state.hist_buy_man == val
+        if col.button(f"{val}만", key=f"hist_buy_chip_{val}",
+                       type="primary" if is_on else "secondary",
+                       use_container_width=True):
+            st.session_state.hist_buy_man = val
+            st.rerun()
+    custom_amt = buy_chip_cols[5].number_input(
+        " ", value=st.session_state.hist_buy_man, step=10, min_value=10, max_value=100000,
+        format="%d", key="hist_buy_amt_input", label_visibility="collapsed",
+    )
+    if custom_amt != st.session_state.hist_buy_man:
+        st.session_state.hist_buy_man = custom_amt
+    buy_man = st.session_state.hist_buy_man
     buy_won = buy_man * 10000
+    st.caption(f"현재 설정: 종목당 **{buy_man}만원** 매수 가정")
+
+    # 중복 매수 처리 (cooldown)
+    st.markdown("**중복 매수 처리** (같은 종목 cooldown)")
+    if "hist_cooldown_days" not in st.session_state:
+        st.session_state.hist_cooldown_days = 0     # 0 = 전체 매수
+    cd_cols = st.columns(7)
+    cd_options = [("전체 매수", 0), ("1일", 1), ("5일", 5), ("7일", 7),
+                   ("14일", 14), ("30일", 30), ("90일", 90)]
+    for col, (label, days) in zip(cd_cols, cd_options):
+        is_on = st.session_state.hist_cooldown_days == days
+        if col.button(label, key=f"hist_cd_{days}",
+                       type="primary" if is_on else "secondary",
+                       use_container_width=True):
+            st.session_state.hist_cooldown_days = days
+            st.rerun()
+    cooldown_days = st.session_state.hist_cooldown_days
+    if cooldown_days == 0:
+        st.caption("**전체 매수** — 매일 시그널마다 매수 (한 종목 5일 연속 시그널 = 5번 매수, 자본 5배 필요)")
+    else:
+        st.caption(f"**{cooldown_days}일 cooldown** — 같은 종목 {cooldown_days}일 이내 재매수 안 함")
 
     # ===== 5) 필터 (디폴트 활성화 — 오늘의 추천과 동일) =====
     st.markdown("##### 🔧 필터")
@@ -2776,7 +2813,30 @@ def page_history():
                                       min_value=0, max_value=100, format="%d",
                                       key="hf_rsiM")
 
-    # ===== 6) 최종 요약 + 조회 버튼 (맨 아래) =====
+    # ===== 6) 등급 + 정렬 기준 (다중 선택) =====
+    st.markdown("**등급** (다중 선택)")
+    gc1, gc2 = st.columns(2)
+    grade_options = [("슈퍼강력매수", "유사도 ≥ 0.78"), ("추천매수", "유사도 0.6 ~ 0.78")]
+    for col, (g, desc) in zip([gc1, gc2], grade_options):
+        is_on = g in st.session_state.hist_grade_set
+        if col.button(g, key=f"hist_grade_{g}",
+                       type="primary" if is_on else "secondary",
+                       use_container_width=True,
+                       help=desc):
+            (st.session_state.hist_grade_set.discard(g) if is_on
+             else st.session_state.hist_grade_set.add(g))
+            st.rerun()
+    if not st.session_state.hist_grade_set:
+        st.warning("⚠️ 등급 1개 이상 선택해야 함")
+
+    # 정렬 기준
+    sort_key = st.selectbox(
+        "**정렬 기준**",
+        ["최신 일자순", "유사도 높은순", "기대 수익 (90일) 높은순", "거래대금 큰순"],
+        index=0, key="hist_sort_key",
+    )
+
+    # ===== 7) 최종 요약 + 조회 버튼 (맨 아래) =====
     sel_years = sorted(st.session_state.hist_sel_years)
     sel_months = sorted(st.session_state.hist_sel_months)
 
@@ -2794,7 +2854,10 @@ def page_history():
         f'margin:1.5rem 0 0.5rem 0;color:#191F28;line-height:1.7;">'
         f'📊 <b>최종 설정 요약</b><br>'
         f'• 연도: <b>{sel_years or "❌ 선택 안 됨"}</b> · 월: <b>{sel_months or "❌ 선택 안 됨"}</b><br>'
-        f'• 일별 추천: <b>{daily_topk}개</b> · 매수금: <b>{fmt_won_kr(buy_won)}</b><br>'
+        f'• 일별 추천: <b>{daily_topk}개</b> · 매수금: <b>{buy_man}만원</b><br>'
+        f'• 등급: <b>{", ".join(sorted(st.session_state.hist_grade_set)) or "❌"}</b> · '
+        f'정렬: <b>{sort_key}</b> · '
+        f'쿨다운: <b>{"전체 매수" if cooldown_days == 0 else f"{cooldown_days}일"}</b><br>'
         f'• 추가 필터: <b>{extra_str}</b>'
         f'</div>',
         unsafe_allow_html=True,
@@ -2877,6 +2940,46 @@ def page_history():
     # 일별 순위
     month_df["day_rank"] = (month_df.sort_values("similarity", ascending=False)
                               .groupby("date").cumcount() + 1)
+
+    # ===== 등급 필터 (다중 선택) — 슈퍼강력매수 / 추천매수 =====
+    if "hist_grade_set" not in st.session_state:
+        st.session_state.hist_grade_set = {"슈퍼강력매수", "추천매수"}
+
+    # 등급 정의: 슈퍼강력 = 유사도 ≥ 0.78, 추천 = 0.6 ~ 0.78
+    def _grade(sim):
+        return "슈퍼강력매수" if sim >= 0.78 else "추천매수"
+    month_df["등급"] = month_df["similarity"].apply(_grade)
+
+    # ===== 쿨다운 필터 — 같은 종목 N일 이내 재진입 차단 =====
+    if cooldown_days > 0 and len(month_df) > 0:
+        month_df = month_df.sort_values(["ticker", "date"]).reset_index(drop=True)
+        month_df["date_dt"] = pd.to_datetime(month_df["date"])
+        keep_mask = []
+        last_buy = {}
+        for _, row in month_df.iterrows():
+            tk = row["ticker"]; dt_ = row["date_dt"]
+            prev = last_buy.get(tk)
+            if prev is None or (dt_ - prev).days >= cooldown_days:
+                keep_mask.append(True)
+                last_buy[tk] = dt_
+            else:
+                keep_mask.append(False)
+        month_df = month_df[keep_mask].drop(columns=["date_dt"]).reset_index(drop=True)
+
+    # 등급 필터 적용
+    month_df = month_df[month_df["등급"].isin(st.session_state.hist_grade_set)].reset_index(drop=True)
+
+    # 정렬 기준 적용
+    sort_key_map = {
+        "최신 일자순": ("date", False),
+        "유사도 높은순": ("similarity", False),
+        "기대 수익 (90일) 높은순": ("ret_d90", False),
+        "거래대금 큰순": ("value_eok", False),
+    }
+    if sort_key in sort_key_map:
+        col, asc = sort_key_map[sort_key]
+        if col in month_df.columns:
+            month_df = month_df.sort_values(col, ascending=asc, na_position="last").reset_index(drop=True)
 
     # 요약 KPI
     unique_stocks = month_df["ticker"].nunique()
