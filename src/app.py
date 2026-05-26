@@ -112,8 +112,12 @@ st.sidebar.markdown('<div style="height:1px;background:#E5E8EB;margin:1.5rem 0;"
 
 # 현 상태 요약 카드 — 사용자가 어디서 뭘 보는지 한눈에
 from case_similarity import case_count as _cc
-_n_combined = _cc(combined=True)
-_n_user = _cc(combined=False)
+
+@st.cache_data(show_spinner=False)
+def _cached_case_counts():
+    return _cc(combined=True), _cc(combined=False)
+
+_n_combined, _n_user = _cached_case_counts()
 st.sidebar.markdown(
     '<div style="background:rgba(0,200,150,0.08);border:1px solid rgba(0,200,150,0.2);'
     'border-radius:8px;padding:0.625rem 0.75rem;margin-bottom:0.75rem;'
@@ -747,10 +751,7 @@ def page_backtest():
             '</div>',
             unsafe_allow_html=True,
         )
-    # 첫 진입 시 자동 실행 + 캐시 강제 클리어
-    if "bt_first_run" not in st.session_state:
-        st.session_state.bt_first_run = True
-        st.cache_data.clear()  # 1057종목 확장 반영 위해 1회 클리어
+    # (자동 실행 제거 — 사용자가 ⚡ 백테스트 실행 버튼 클릭해야만 데이터 로드)
 
     # 한국식 색상 함수 (페이지 전체에서 사용)
     RED = "#F04452"
@@ -954,18 +955,12 @@ def page_backtest():
         st.warning("⚠️ v3는 30일 보유가 권장입니다 (1일은 익일 청산 손실 큼). "
                     "메인 분석 기간을 '30일'로 변경하세요.")
 
-    # 첫 진입 시 디폴트값으로 자동 실행
-    if st.session_state.bt_first_run:
-        st.session_state.bt_first_run = False
-        run = True
-
-    # ⚡ 실행 가드 — 버튼 안 눌렀으면 백테스트 안 함
-    # (이전: 연/월/필터 토글마다 자동 재실행되어 버벅거림)
+    # ⚡ 실행 가드 — 버튼 안 눌렀으면 백테스트 안 함 (자동 실행 제거)
     if not run:
         empty_state(
             "▶️", "백테스트 대기 중",
             "위에서 연도/월/파라미터 조정 후 [⚡ 백테스트 실행] 버튼을 누르세요. "
-            "위젯 클릭마다 자동 실행 안 함 (수동 트리거).",
+            "토글/입력 클릭 시 자동 실행 안 됨 — 명시 클릭만.",
         )
         return
 
