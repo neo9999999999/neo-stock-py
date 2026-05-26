@@ -873,43 +873,44 @@ def page_backtest():
     sel_yrs = sorted(st.session_state.bt_sel_years)
     sel_mos = sorted(st.session_state.bt_sel_months)
 
-    # ----- 파라미터 입력 (그리드 정리) -----
+    # ----- 파라미터 입력 — st.form으로 묶어서 클릭마다 rerun 안 함 -----
     section_title("⚙️ 파라미터 · 자유 커스텀")
-    st.caption("디폴트값: 코스닥 포함 완화 셋업. 손절 0% = 손절 없음.")
+    st.caption("디폴트값: 코스닥 포함 완화 셋업. 손절 0% = 손절 없음. "
+                "**입력 변경 시 자동 실행 X — '⚡ 백테스트 실행' 클릭만**.")
 
-    # 1행: 거래대금 / 거래량 배수 / 신고가 / 최소 충족 / 종가-고가 비율
-    c1, c2, c3, c4, c5 = st.columns(5)
-    min_value_eok = c1.number_input("거래대금 (억원 ≥)",
-                                      value=50, step=10, format="%d", key="bt_minval")
-    volume_mult = c2.number_input("거래량 배수 (×)",
-                                   value=3.0, step=0.5, format="%.2f", key="bt_volmult")
-    high_window = c3.number_input("신고가 기간 (일)",
-                                   value=60, step=5, min_value=2, format="%d", key="bt_hw")
-    require_score = c4.selectbox("최소 충족 조건",
-                                  [1, 2, 3, 4, 5], index=3, key="bt_score")
-    close_to_high = c5.number_input("종가/고가 ≥",
-                                      value=0.70, step=0.01, format="%.3f", key="bt_clh")
+    with st.form("backtest_params_form", clear_on_submit=False):
+        c1, c2, c3, c4, c5 = st.columns(5)
+        min_value_eok = c1.number_input("거래대금 (억원 ≥)",
+                                          value=50, step=10, format="%d", key="bt_minval")
+        volume_mult = c2.number_input("거래량 배수 (×)",
+                                       value=3.0, step=0.5, format="%.2f", key="bt_volmult")
+        high_window = c3.number_input("신고가 기간 (일)",
+                                       value=60, step=5, min_value=2, format="%d", key="bt_hw")
+        require_score = c4.selectbox("최소 충족 조건",
+                                      [1, 2, 3, 4, 5], index=3, key="bt_score")
+        close_to_high = c5.number_input("종가/고가 ≥",
+                                          value=0.70, step=0.01, format="%.3f", key="bt_clh")
 
-    # 2행: 최소/최대 등락률 / 매수 종목수 / 손절 / 거래비용
-    c1, c2, c3, c4, c5 = st.columns(5)
-    ret_min = c1.number_input("최소 등락률 (%)",
-                                value=7.0, step=0.5, format="%.2f", key="bt_rmin")
-    ret_max = c2.number_input("최대 등락률 (%)",
-                                value=28.0, step=1.0, format="%.2f", key="bt_rmax")
-    top_k = c3.number_input("일별 매수 종목",
-                             value=5, step=1, min_value=1, format="%d", key="bt_topk")
-    stop_pct = c4.number_input("손절 (%, 0=없음)",
-                                 value=0.0, step=0.5, format="%.2f", key="bt_stop")
-    cost = c5.number_input("거래비용 (%, 왕복)",
-                             value=0.3, step=0.1, format="%.2f", key="bt_cost")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        ret_min = c1.number_input("최소 등락률 (%)",
+                                    value=7.0, step=0.5, format="%.2f", key="bt_rmin")
+        ret_max = c2.number_input("최대 등락률 (%)",
+                                    value=28.0, step=1.0, format="%.2f", key="bt_rmax")
+        top_k = c3.number_input("일별 매수 종목",
+                                 value=5, step=1, min_value=1, format="%d", key="bt_topk")
+        stop_pct = c4.number_input("손절 (%, 0=없음)",
+                                     value=0.0, step=0.5, format="%.2f", key="bt_stop")
+        cost = c5.number_input("거래비용 (%, 왕복)",
+                                 value=0.3, step=0.1, format="%.2f", key="bt_cost")
+
+        c1, c2 = st.columns([1, 4])
+        capital_man = c1.number_input("종목당 투입금 (만원)",
+                                       value=100, step=10, min_value=10, max_value=100000,
+                                       format="%d", key="bt_cap")
+        # form_submit_button — form 안의 모든 위젯 변경을 한 번에 commit
+        run = c2.form_submit_button("⚡ 백테스트 실행", type="primary",
+                                       use_container_width=True)
     stop_loss = (stop_pct / 100) if stop_pct < 0 else None
-
-    # 3행: 종목당 투입금 / 실행 버튼
-    c1, c2 = st.columns([1, 4])
-    capital_man = c1.number_input("종목당 투입금 (만원)",
-                                   value=100, step=10, min_value=10, max_value=100000,
-                                   format="%d", key="bt_cap")
-    run = c2.button("⚡ 백테스트 실행", type="primary", use_container_width=True, key="bt_run")
     capital_won = capital_man * 10000
 
     # 연도 호환 — 다중이지만 backtest는 단일 연도가 편함. 가장 최신 선택 사용 또는 전체.
