@@ -406,10 +406,11 @@ def page_today():
     use_v3_today = True
     today_buy_won = 0          # 매수금 표시 안 함
 
-    # 현재가 + 현재 등락률 (네이버 모바일 API, 실시간)
-    with st.spinner("현재가 로딩…"):
-        current_prices = []
-        current_changes = []
+    # 현재가 + 현재 등락률 + 기본분석 (네이버 모바일 API)
+    with st.spinner("현재가 + 기본분석 로딩…"):
+        current_prices, current_changes = [], []
+        per_list, pbr_list, roe_list = [], [], []
+        sales_yoy_list, op_yoy_list = [], []
         for _, r in df.iterrows():
             try:
                 cur = scraper.fetch_stock_current(r["ticker"])
@@ -418,8 +419,23 @@ def page_today():
             except Exception:
                 current_prices.append(int(r["close"]))
                 current_changes.append(float(r["ret_pct"]))
+            try:
+                f = scraper.fetch_stock_fundamentals(r["ticker"])
+                per_list.append(f.get("per"))
+                pbr_list.append(f.get("pbr"))
+                roe_list.append(f.get("roe"))
+                sales_yoy_list.append(f.get("sales_yoy"))
+                op_yoy_list.append(f.get("op_income_yoy"))
+            except Exception:
+                per_list.append(None); pbr_list.append(None); roe_list.append(None)
+                sales_yoy_list.append(None); op_yoy_list.append(None)
         df["current_price"] = current_prices
         df["current_change_pct"] = current_changes
+        df["per"] = per_list
+        df["pbr"] = pbr_list
+        df["roe"] = roe_list
+        df["sales_yoy"] = sales_yoy_list
+        df["op_income_yoy"] = op_yoy_list
 
     # 요약 KPI
     section_title("요약")
@@ -431,6 +447,26 @@ def page_today():
         ("최고 유사도", f"{df.iloc[0]['similarity']:.2f}",
          df.iloc[0]['name'][:12], "success"),
     ])
+
+    # 기본분석 표 (PER/PBR/ROE/매출YoY/영업이익YoY)
+    section_title("📊 기본분석 (전년동기 대비)")
+    fund_rows = []
+    for _, r in df.iterrows():
+        def _f(v, pct=False, suffix=""):
+            if v is None or pd.isna(v): return "—"
+            return f"{v*100:+.1f}%" if pct else (f"{v:.2f}" if isinstance(v,float) else str(v)) + suffix
+        fund_rows.append({
+            "종목": r["name"],
+            "코드": r["ticker"],
+            "PER": _f(r.get("per")),
+            "PBR": _f(r.get("pbr")),
+            "ROE %": _f(r.get("roe")),
+            "매출 YoY": _f(r.get("sales_yoy"), pct=True),
+            "영업이익 YoY": _f(r.get("op_income_yoy"), pct=True),
+        })
+    fund_df = pd.DataFrame(fund_rows)
+    st.dataframe(fund_df, use_container_width=True, hide_index=True)
+    st.caption("PER 낮음 + 매출/영업이익 증가 = 건강. — 표시는 데이터 없음.")
 
     # 테마/뉴스 enrich
     tc1, tc2 = st.columns(2)
@@ -2887,9 +2923,10 @@ def page_history():
         sign = "+" if ret >= 0 else ""
         return f"{sign}{ret*100:.1f}% ({fmt_won_kr(won)})"
 
-    for src, dst in [("ret_d1", "익일"), ("ret_d10", "10일"),
-                      ("ret_d30", "30일"), ("ret_d60", "60일"),
-                      ("ret_d90", "90일"), ("ret_d120", "120일"),
+    # 일자별 시그널 표 컬럼: 10/30/90/180만 (사용자 요청 — 60/120 제외)
+    for src, dst in [("ret_d10", "10일"),
+                      ("ret_d30", "30일"),
+                      ("ret_d90", "90일"),
                       ("ret_d180", "180일")]:
         month_df[dst] = month_df[src].apply(_combine)
 
@@ -2925,9 +2962,10 @@ def page_history():
     section_title("💰 월별 손익 + 전체 손익")
     st.caption(f"종목당 매수금 {fmt_won_kr(buy_won)} 기준. 모든 시그널 평균 수익률 × 매수금.")
 
-    period_cols = [("ret_d1", "익일"), ("ret_d10", "10일"),
-                    ("ret_d30", "30일"), ("ret_d60", "60일"),
-                    ("ret_d90", "90일"), ("ret_d120", "120일"),
+    # 월별 손익 표 컬럼: 10/30/90/180만 (사용자 요청 — 60/120 제외)
+    period_cols = [("ret_d10", "10일"),
+                    ("ret_d30", "30일"),
+                    ("ret_d90", "90일"),
                     ("ret_d180", "180일")]
 
     month_df["yyyymm"] = (month_df["year"].astype(str) + "-"

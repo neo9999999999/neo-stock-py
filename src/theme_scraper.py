@@ -223,6 +223,97 @@ def fetch_themes_weighted(
     return base
 
 
+# ----- 종목 기본분석 (PER/PBR/매출/영업이익/ROE — 네이버 분기 재무) -----
+
+def fetch_stock_fundamentals(code: str) -> dict:
+    """네이버 모바일 분기 재무 API에서 종목 펀더멘털.
+
+    반환:
+        sales: 최근 분기 매출액
+        sales_yoy: 전년동기 대비 매출 증가율 (None if 불가)
+        op_income: 영업이익
+        op_income_yoy: 영업이익 전년동기 증가율
+        per, pbr, roe, op_margin: 비율
+    """
+    cache_key = f"fundamentals_{code}"
+    cached = _cached(cache_key)
+    if cached is not None:
+        return cached
+
+    url = f"https://m.stock.naver.com/api/stock/{code}/finance/quarter"
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=6)
+        d = r.json()
+    except Exception:
+        return {}
+
+    rows = d.get("financeInfo", {}).get("rowList", [])
+    titles = d.get("financeInfo", {}).get("trTitleList", [])
+    if not rows or not titles:
+        return {}
+
+    # 가장 최근 분기 키 + 전년동기
+    keys = [t["key"] for t in titles if t.get("isConsensus") == "N"]
+    if not keys:
+        return {}
+    latest_key = keys[-1]
+    # 전년동기: 같은 분기 1년 전
+    try:
+        y = int(latest_key[:4]); q = latest_key[4:6]
+        prev_key = f"{y-1}{q}"
+    except Exception:
+        prev_key = None
+
+    def _val(title):
+        for row in rows:
+            if row.get("title") == title:
+                cell = row.get("columns", {}).get(latest_key, {})
+                v = cell.get("value", "") if isinstance(cell, dict) else ""
+                if not v: return None
+                try:
+                    return float(str(v).replace(",", ""))
+                except (ValueError, TypeError):
+                    return None
+        return None
+
+    def _val_prev(title):
+        if not prev_key: return None
+        for row in rows:
+            if row.get("title") == title:
+                cell = row.get("columns", {}).get(prev_key, {})
+                v = cell.get("value", "") if isinstance(cell, dict) else ""
+                if not v: return None
+                try:
+                    return float(str(v).replace(",", ""))
+                except (ValueError, TypeError):
+                    return None
+        return None
+
+    sales = _val("매출액")
+    sales_prev = _val_prev("매출액")
+    op_income = _val("영업이익")
+    op_income_prev = _val_prev("영업이익")
+
+    def _yoy(curr, prev):
+        if curr is None or prev is None or prev == 0:
+            return None
+        return (curr - prev) / abs(prev)
+
+    result = {
+        "sales": sales,                              # 억원 단위
+        "sales_yoy": _yoy(sales, sales_prev),
+        "op_income": op_income,
+        "op_income_yoy": _yoy(op_income, op_income_prev),
+        "per": _val("PER"),
+        "pbr": _val("PBR"),
+        "roe": _val("ROE"),
+        "op_margin": _val("영업이익률"),
+        "latest_quarter": latest_key,
+    }
+    _put(cache_key, result)
+    return result
+
+
 # ----- 종목 현재가 (네이버 모바일 단일 종목 API) ----------------------------
 
 def fetch_stock_current(code: str) -> dict:

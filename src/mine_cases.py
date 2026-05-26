@@ -12,7 +12,7 @@
   - 60일 신고가 0.93배 이상 (선택)
 
 사용:
-  python -m mine_cases   # results/cases_mined_2021_2024.csv 생성
+  python -m mine_cases   # results/cases_mined_2020_2024.csv 생성
 """
 
 import sys
@@ -31,7 +31,7 @@ from data_loader import get_ohlcv
 ROOT = Path(__file__).resolve().parent.parent
 
 # 마이닝 파라미터
-MINE_START = "20210101"
+MINE_START = "20200601"
 MINE_END = "20241231"
 DAILY_RET_MIN = 0.05            # 일간 등락률 하한
 DAILY_RET_MAX = 0.25            # 일간 등락률 상한
@@ -157,7 +157,7 @@ def main():
                   f"({time.time()-t0:.0f}s)", flush=True)
         try:
             # 마이닝 윈도우 + 30일 forward + 80일 룩백
-            df = get_ohlcv(code, "20210101", "20260517")
+            df = get_ohlcv(code, "20200101", "20260520")
             if df.empty or len(df) < LOOKBACK_NEED + WIN_HORIZON:
                 continue
             # value 컬럼 보장
@@ -191,7 +191,7 @@ def main():
     except Exception:
         pass
 
-    out_path = ROOT / "results" / "cases_mined_2021_2024.csv"
+    out_path = ROOT / "results" / "cases_mined_2020_2024.csv"
     df_cases.to_csv(out_path, index=False)
     print(f"저장: {out_path}", flush=True)
     print(f"\n=== 분포 ===", flush=True)
